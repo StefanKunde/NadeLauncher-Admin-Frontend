@@ -66,6 +66,11 @@ export default function UsersPage() {
   };
 
   const handlePremiumChange = async (userId: string, isPremium: boolean) => {
+    if (currentUser?.role !== 'admin') {
+      toast.error('Only admins can change premium status');
+      return;
+    }
+
     setUpdatingId(userId);
     try {
       const updated = await adminUsersApi.updatePremium(userId, isPremium);
@@ -270,24 +275,26 @@ export default function UsersPage() {
                       </select>
                     )}
 
-                    {/* Premium toggle */}
-                    <button
-                      onClick={() => handlePremiumChange(user.id, !user.isPremium)}
-                      disabled={updatingId === user.id}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all disabled:opacity-50 ${
-                        user.isPremium
-                          ? 'bg-[#ff4444]/10 text-[#ff4444] border border-[#ff4444]/30 hover:bg-[#ff4444]/20'
-                          : 'bg-[#f0a500]/10 text-[#f0a500] border border-[#f0a500]/30 hover:bg-[#f0a500]/20'
-                      }`}
-                    >
-                      {updatingId === user.id ? (
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      ) : user.isPremium ? (
-                        'Remove Premium'
-                      ) : (
-                        'Add Premium'
-                      )}
-                    </button>
+                    {/* Premium toggle (admin only) */}
+                    {currentUser?.role === 'admin' && (
+                      <button
+                        onClick={() => handlePremiumChange(user.id, !user.isPremium)}
+                        disabled={updatingId === user.id}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all disabled:opacity-50 ${
+                          user.isPremium
+                            ? 'bg-[#ff4444]/10 text-[#ff4444] border border-[#ff4444]/30 hover:bg-[#ff4444]/20'
+                            : 'bg-[#f0a500]/10 text-[#f0a500] border border-[#f0a500]/30 hover:bg-[#f0a500]/20'
+                        }`}
+                      >
+                        {updatingId === user.id ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : user.isPremium ? (
+                          'Remove Premium'
+                        ) : (
+                          'Add Premium'
+                        )}
+                      </button>
+                    )}
                   </div>
                 </td>
               </tr>

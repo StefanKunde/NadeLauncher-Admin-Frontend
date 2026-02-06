@@ -13,9 +13,13 @@ import {
   Trash2,
   AlertTriangle,
   X,
+  Server,
+  MapPin,
+  Clock,
+  Square,
 } from 'lucide-react';
-import { adminStatsApi, adminLineupsApi } from '@/lib/api';
-import type { DashboardStats } from '@/lib/types';
+import { adminStatsApi, adminLineupsApi, adminSessionsApi } from '@/lib/api';
+import type { DashboardStats, Session } from '@/lib/types';
 import toast from 'react-hot-toast';
 
 const container = {
@@ -37,16 +41,45 @@ export default function DashboardPage() {
   const [deleteModal, setDeleteModal] = useState<'all' | 'presets' | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [confirmText, setConfirmText] = useState('');
+  const [runningSessions, setRunningSessions] = useState<Session[]>([]);
+  const [endingSession, setEndingSession] = useState<string | null>(null);
 
   const loadStats = async () => {
     try {
-      const data = await adminStatsApi.getDashboard();
+      const [data, sessions] = await Promise.all([
+        adminStatsApi.getDashboard(),
+        adminSessionsApi.getRunning().catch(() => []),
+      ]);
       setStats(data);
+      setRunningSessions(sessions);
     } catch (error) {
       toast.error('Failed to load dashboard stats');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleEndSession = async (sessionId: string) => {
+    setEndingSession(sessionId);
+    try {
+      await adminSessionsApi.end(sessionId);
+      toast.success('Session ended');
+      setRunningSessions((prev) => prev.filter((s) => s.id !== sessionId));
+    } catch (error) {
+      toast.error('Failed to end session');
+    } finally {
+      setEndingSession(null);
+    }
+  };
+
+  const formatDuration = (startedAt: string | null) => {
+    if (!startedAt) return 'Not connected';
+    const start = new Date(startedAt).getTime();
+    const now = Date.now();
+    const seconds = Math.floor((now - start) / 1000);
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   useEffect(() => {
@@ -229,6 +262,105 @@ export default function DashboardPage() {
             </p>
           </div>
         </div>
+      </motion.div>
+
+      {/* Running Servers */}
+      <motion.div
+        className="mt-8 glass rounded-xl p-6"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.45 }}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-[#e8e8e8]">
+            Running Servers
+          </h2>
+          <span className="text-sm text-[#6b6b8a]">
+            {runningSessions.length} active
+          </span>
+        </div>
+
+        {runningSessions.length === 0 ? (
+          <div className="text-center py-8">
+            <Server className="w-12 h-12 text-[#2a2a3e] mx-auto mb-3" />
+            <p className="text-[#6b6b8a]">No servers running</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {runningSessions.map((session) => (
+              <div
+                key={session.id}
+                className="bg-[#1a1a2e] rounded-lg p-4 border border-[#2a2a3e] flex items-center gap-4"
+              >
+                {/* Status indicator */}
+                <div className="relative">
+                  <div className={`w-3 h-3 rounded-full ${
+                    session.status === 'active' || session.status === 'ready'
+                      ? 'bg-[#22c55e]'
+                      : session.status === 'queued'
+                        ? 'bg-[#6366f1]'
+                        : 'bg-[#f0a500]'
+                  }`} />
+                  {(session.status === 'active' || session.status === 'ready') && (
+                    <div className="absolute inset-0 rounded-full bg-[#22c55e] animate-ping opacity-75" />
+                  )}
+                </div>
+
+                {/* Session info */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-[#e8e8e8] font-medium truncate">
+                      {session.user?.username ?? 'Unknown User'}
+                    </span>
+                    {session.isEditorSession && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#8b5cf6]/15 text-[#8b5cf6] font-medium">
+                        EDITOR
+                      </span>
+                    )}
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+                      session.status === 'active' || session.status === 'ready'
+                        ? 'bg-[#22c55e]/15 text-[#22c55e]'
+                        : session.status === 'queued'
+                          ? 'bg-[#6366f1]/15 text-[#6366f1]'
+                          : 'bg-[#f0a500]/15 text-[#f0a500]'
+                    }`}>
+                      {session.status.toUpperCase()}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-4 text-sm text-[#6b6b8a]">
+                    <span className="flex items-center gap-1">
+                      <MapPin className="w-3 h-3" />
+                      {session.mapName}
+                    </span>
+                    {session.serverIp && (
+                      <span className="font-mono text-xs">
+                        {session.serverIp}:{session.serverPort}
+                      </span>
+                    )}
+                    <span className="flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      {formatDuration(session.startedAt)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* End button */}
+                <button
+                  onClick={() => handleEndSession(session.id)}
+                  disabled={endingSession === session.id}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-red-500/10 text-red-500 border border-red-500/30 hover:bg-red-500/20 transition-colors disabled:opacity-50"
+                >
+                  {endingSession === session.id ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Square className="w-3.5 h-3.5" />
+                  )}
+                  End
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </motion.div>
 
       {/* Data Management */}

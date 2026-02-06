@@ -131,6 +131,8 @@ export const adminSessionsApi = {
     api.post('/admin/sessions/editor', data).then((r) => unwrap<Session>(r.data)),
   getActive: () =>
     api.get('/admin/sessions/active').then((r) => unwrap<Session | null>(r.data)),
+  getRunning: () =>
+    api.get('/admin/sessions/running').then((r) => unwrap<Session[]>(r.data)),
   end: (id: string) =>
     api.post(`/admin/sessions/${id}/end`).then((r) => r.data),
 };

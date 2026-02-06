@@ -98,7 +98,7 @@ export interface Session {
   isActive: boolean;
   status: SessionStatus;
   provisioningError?: string;
-  startedAt?: string;
+  startedAt?: string | null;
   endedAt?: string;
   endReason?: string;
   expiresAt: string;
@@ -109,4 +109,9 @@ export interface Session {
   isEditorSession?: boolean;
   editingCollectionId?: string;
   editingCollectionName?: string;
+  user?: {
+    id: string;
+    username: string;
+    avatar?: string;
+  };
 }

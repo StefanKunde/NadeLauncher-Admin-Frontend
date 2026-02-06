@@ -83,3 +83,30 @@ export interface UsageStatsData {
   dailyUsage: { date: string; sessions: number; totalSeconds: number }[];
   topUsers: { userId: string; username: string; totalSeconds: number }[];
 }
+
+// Session types
+export type SessionStatus = 'queued' | 'pending' | 'provisioning' | 'ready' | 'active' | 'ending' | 'ended' | 'failed';
+
+export interface Session {
+  id: string;
+  userId: string;
+  token: string;
+  serverIp?: string;
+  serverPort?: number;
+  serverPassword?: string;
+  mapName: string;
+  isActive: boolean;
+  status: SessionStatus;
+  provisioningError?: string;
+  startedAt?: string;
+  endedAt?: string;
+  endReason?: string;
+  expiresAt: string;
+  connectionTimeoutAt?: string;
+  createdAt: string;
+  queuedAt?: string;
+  queuePosition?: number;
+  isEditorSession?: boolean;
+  editingCollectionId?: string;
+  editingCollectionName?: string;
+}

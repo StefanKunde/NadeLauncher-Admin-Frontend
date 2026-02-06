@@ -99,15 +99,15 @@ export default function CollectionsPage() {
     setSaving(true);
     try {
       if (editingId) {
-        const updated = await collectionsApi.update(editingId, formData);
-        setCollections((prev) =>
-          prev.map((c) => (c.id === editingId ? { ...c, ...updated } : c))
-        );
+        await collectionsApi.update(editingId, formData);
         toast.success('Collection updated');
+        // Reload all collections to reflect any default changes
+        await loadCollections();
       } else {
-        const created = await collectionsApi.create(formData);
-        setCollections((prev) => [...prev, created]);
+        await collectionsApi.create(formData);
         toast.success('Collection created');
+        // Reload all collections to reflect any default changes
+        await loadCollections();
       }
       closeModal();
     } catch (error) {

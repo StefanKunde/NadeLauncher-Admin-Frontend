@@ -9,6 +9,7 @@ import type {
   CollectionWithLineups,
   Lineup,
   UserRole,
+  Session,
 } from './types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://nadelauncher-backend-a99d397c.apps.deploypilot.stefankunde.dev';
@@ -85,18 +86,18 @@ export const adminStatsApi = {
 // Collections (admin endpoints)
 export const collectionsApi = {
   getAll: (map?: string) =>
-    api.get('/collections', { params: { map } }).then((r) => extract<LineupCollection[]>(r)),
+    api.get('/api/collections', { params: { map } }).then((r) => extract<LineupCollection[]>(r)),
   getById: (id: string) =>
-    api.get(`/collections/${id}`).then((r) => extract<CollectionWithLineups>(r)),
+    api.get(`/api/collections/${id}`).then((r) => extract<CollectionWithLineups>(r)),
   create: (data: { name: string; description?: string; mapName: string; isDefault?: boolean; sortOrder?: number }) =>
-    api.post('/collections', data).then((r) => extract<LineupCollection>(r)),
+    api.post('/api/collections', data).then((r) => extract<LineupCollection>(r)),
   update: (id: string, data: { name?: string; description?: string; isDefault?: boolean; sortOrder?: number }) =>
-    api.put(`/collections/${id}`, data).then((r) => extract<LineupCollection>(r)),
-  delete: (id: string) => api.delete(`/collections/${id}`),
+    api.put(`/api/collections/${id}`, data).then((r) => extract<LineupCollection>(r)),
+  delete: (id: string) => api.delete(`/api/collections/${id}`),
   addLineup: (collectionId: string, lineupId: string) =>
-    api.post(`/collections/${collectionId}/lineups`, { lineupId }),
+    api.post(`/api/collections/${collectionId}/lineups`, { lineupId }),
   removeLineup: (collectionId: string, lineupId: string) =>
-    api.delete(`/collections/${collectionId}/lineups/${lineupId}`),
+    api.delete(`/api/collections/${collectionId}/lineups/${lineupId}`),
 };
 
 // Lineups
@@ -122,6 +123,16 @@ export const adminLineupsApi = {
     api.delete('/admin/lineups/all').then((r) => unwrap<{ deletedCount: number }>(r.data)),
   deletePresets: () =>
     api.delete('/admin/lineups/presets').then((r) => unwrap<{ deletedCount: number }>(r.data)),
+};
+
+// Admin Sessions (editor mode)
+export const adminSessionsApi = {
+  createEditor: (data: { mapName: string; collectionId: string }) =>
+    api.post('/admin/sessions/editor', data).then((r) => unwrap<Session>(r.data)),
+  getActive: () =>
+    api.get('/admin/sessions/active').then((r) => unwrap<Session | null>(r.data)),
+  end: (id: string) =>
+    api.post(`/admin/sessions/${id}/end`).then((r) => r.data),
 };
 
 export default api;

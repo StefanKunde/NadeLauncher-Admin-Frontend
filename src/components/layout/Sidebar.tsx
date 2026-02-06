@@ -11,6 +11,7 @@ import {
   LogOut,
   Shield,
   Crown,
+  Server,
 } from 'lucide-react';
 import { useAuthStore } from '@/store/auth-store';
 
@@ -18,6 +19,7 @@ const NAV_ITEMS = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { href: '/dashboard/users', icon: Users, label: 'Users' },
   { href: '/dashboard/collections', icon: FolderOpen, label: 'Collections' },
+  { href: '/dashboard/editor', icon: Server, label: 'Editor' },
 ];
 
 export default function Sidebar() {

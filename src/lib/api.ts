@@ -79,26 +79,26 @@ export const adminStatsApi = {
 // Collections (admin endpoints)
 export const collectionsApi = {
   getAll: (map?: string) =>
-    api.get<{ data: LineupCollection[] }>('/api/collections', { params: { map } }).then((r) => r.data.data),
+    api.get<LineupCollection[]>('/collections', { params: { map } }).then((r) => r.data),
   getById: (id: string) =>
-    api.get<{ data: CollectionWithLineups }>(`/api/collections/${id}`).then((r) => r.data.data),
+    api.get<CollectionWithLineups>(`/collections/${id}`).then((r) => r.data),
   create: (data: { name: string; description?: string; mapName: string; isDefault?: boolean; sortOrder?: number }) =>
-    api.post<{ data: LineupCollection }>('/api/collections', data).then((r) => r.data.data),
+    api.post<LineupCollection>('/collections', data).then((r) => r.data),
   update: (id: string, data: { name?: string; description?: string; isDefault?: boolean; sortOrder?: number }) =>
-    api.put<{ data: LineupCollection }>(`/api/collections/${id}`, data).then((r) => r.data.data),
-  delete: (id: string) => api.delete(`/api/collections/${id}`),
+    api.put<LineupCollection>(`/collections/${id}`, data).then((r) => r.data),
+  delete: (id: string) => api.delete(`/collections/${id}`),
   addLineup: (collectionId: string, lineupId: string) =>
-    api.post(`/api/collections/${collectionId}/lineups`, { lineupId }),
+    api.post(`/collections/${collectionId}/lineups`, { lineupId }),
   removeLineup: (collectionId: string, lineupId: string) =>
-    api.delete(`/api/collections/${collectionId}/lineups/${lineupId}`),
+    api.delete(`/collections/${collectionId}/lineups/${lineupId}`),
 };
 
 // Lineups
 export const lineupsApi = {
   getPresets: (map?: string) =>
-    api.get<{ data: Lineup[] }>('/api/lineups/presets', { params: { map } }).then((r) => r.data.data),
+    api.get<Lineup[]>('/api/lineups/presets', { params: { map } }).then((r) => r.data),
   getById: (id: string) =>
-    api.get<{ data: Lineup }>(`/api/lineups/${id}`).then((r) => r.data.data),
+    api.get<Lineup>(`/api/lineups/${id}`).then((r) => r.data),
   delete: (id: string) => api.delete(`/api/lineups/${id}`),
 };
 

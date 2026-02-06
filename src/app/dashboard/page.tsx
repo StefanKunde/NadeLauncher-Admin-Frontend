@@ -72,7 +72,7 @@ export default function DashboardPage() {
     }
   };
 
-  const formatDuration = (startedAt: string | null) => {
+  const formatDuration = (startedAt: string | null | undefined) => {
     if (!startedAt) return 'Not connected';
     const start = new Date(startedAt).getTime();
     const now = Date.now();

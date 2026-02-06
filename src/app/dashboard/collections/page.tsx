@@ -54,9 +54,12 @@ export default function CollectionsPage() {
   const loadCollections = async () => {
     try {
       const data = await collectionsApi.getAll();
-      setCollections(data);
+      // Ensure we always have an array
+      setCollections(Array.isArray(data) ? data : []);
     } catch (error) {
+      console.error('Failed to load collections:', error);
       toast.error('Failed to load collections');
+      setCollections([]);
     } finally {
       setLoading(false);
     }

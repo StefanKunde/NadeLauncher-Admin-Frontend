@@ -34,9 +34,12 @@ export default function UsersPage() {
   const loadUsers = async () => {
     try {
       const data = await adminUsersApi.getAll();
-      setUsers(data);
+      // Ensure we always have an array
+      setUsers(Array.isArray(data) ? data : []);
     } catch (error) {
+      console.error('Failed to load users:', error);
       toast.error('Failed to load users');
+      setUsers([]);
     } finally {
       setLoading(false);
     }

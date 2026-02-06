@@ -60,20 +60,23 @@ export const authApi = {
     api.post<{ data: AuthResponse }>('/auth/refresh', { refreshToken }).then((r) => r.data.data),
 };
 
+// Helper to unwrap double-wrapped responses: { data: { data: T } } -> T
+const unwrap = <T>(r: { data: { data: T } }): T => r.data.data;
+
 // Admin Users
 export const adminUsersApi = {
-  getAll: () => api.get<{ data: AdminUser[] }>('/admin/users').then((r) => r.data.data),
-  getById: (id: string) => api.get<{ data: AdminUser }>(`/admin/users/${id}`).then((r) => r.data.data),
+  getAll: () => api.get('/admin/users').then((r) => unwrap<AdminUser[]>(r.data)),
+  getById: (id: string) => api.get(`/admin/users/${id}`).then((r) => unwrap<AdminUser>(r.data)),
   updateRole: (id: string, role: UserRole) =>
-    api.put<{ data: AdminUser }>(`/admin/users/${id}/role`, { role }).then((r) => r.data.data),
+    api.put(`/admin/users/${id}/role`, { role }).then((r) => unwrap<AdminUser>(r.data)),
   updatePremium: (id: string, isPremium: boolean) =>
-    api.put<{ data: AdminUser }>(`/admin/users/${id}/premium`, { isPremium }).then((r) => r.data.data),
+    api.put(`/admin/users/${id}/premium`, { isPremium }).then((r) => unwrap<AdminUser>(r.data)),
 };
 
 // Admin Stats
 export const adminStatsApi = {
-  getDashboard: () => api.get<{ data: DashboardStats }>('/admin/stats/dashboard').then((r) => r.data.data),
-  getUsage: () => api.get<{ data: UsageStatsData }>('/admin/stats/usage').then((r) => r.data.data),
+  getDashboard: () => api.get('/admin/stats/dashboard').then((r) => unwrap<DashboardStats>(r.data)),
+  getUsage: () => api.get('/admin/stats/usage').then((r) => unwrap<UsageStatsData>(r.data)),
 };
 
 // Collections (admin endpoints)

@@ -60,7 +60,10 @@ export const authApi = {
     api.post<{ data: AuthResponse }>('/auth/refresh', { refreshToken }).then((r) => r.data.data),
 };
 
-// Helper to unwrap double-wrapped responses: { data: { data: T } } -> T
+// Helper to unwrap global response wrapper: { data: T, statusCode, timestamp } -> T
+const extract = <T>(r: { data: { data: T } }): T => r.data.data;
+
+// Helper to unwrap double-wrapped responses (admin endpoints): { data: { data: T } } -> T
 const unwrap = <T>(r: { data: { data: T } }): T => r.data.data;
 
 // Admin Users
@@ -82,13 +85,13 @@ export const adminStatsApi = {
 // Collections (admin endpoints)
 export const collectionsApi = {
   getAll: (map?: string) =>
-    api.get<LineupCollection[]>('/collections', { params: { map } }).then((r) => r.data),
+    api.get('/collections', { params: { map } }).then((r) => extract<LineupCollection[]>(r)),
   getById: (id: string) =>
-    api.get<CollectionWithLineups>(`/collections/${id}`).then((r) => r.data),
+    api.get(`/collections/${id}`).then((r) => extract<CollectionWithLineups>(r)),
   create: (data: { name: string; description?: string; mapName: string; isDefault?: boolean; sortOrder?: number }) =>
-    api.post<LineupCollection>('/collections', data).then((r) => r.data),
+    api.post('/collections', data).then((r) => extract<LineupCollection>(r)),
   update: (id: string, data: { name?: string; description?: string; isDefault?: boolean; sortOrder?: number }) =>
-    api.put<LineupCollection>(`/collections/${id}`, data).then((r) => r.data),
+    api.put(`/collections/${id}`, data).then((r) => extract<LineupCollection>(r)),
   delete: (id: string) => api.delete(`/collections/${id}`),
   addLineup: (collectionId: string, lineupId: string) =>
     api.post(`/collections/${collectionId}/lineups`, { lineupId }),
@@ -99,9 +102,9 @@ export const collectionsApi = {
 // Lineups
 export const lineupsApi = {
   getPresets: (map?: string) =>
-    api.get<Lineup[]>('/api/lineups/presets', { params: { map } }).then((r) => r.data),
+    api.get('/api/lineups/presets', { params: { map } }).then((r) => extract<Lineup[]>(r)),
   getById: (id: string) =>
-    api.get<Lineup>(`/api/lineups/${id}`).then((r) => r.data),
+    api.get(`/api/lineups/${id}`).then((r) => extract<Lineup>(r)),
   delete: (id: string) => api.delete(`/api/lineups/${id}`),
 };
 

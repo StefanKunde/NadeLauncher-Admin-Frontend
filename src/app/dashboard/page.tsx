@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { adminStatsApi, adminLineupsApi, adminSessionsApi } from '@/lib/api';
 import type { DashboardStats, Session } from '@/lib/types';
+import { useAuthStore } from '@/store/auth-store';
 import toast from 'react-hot-toast';
 
 const container = {
@@ -36,6 +37,8 @@ const item = {
 };
 
 export default function DashboardPage() {
+  const user = useAuthStore((s) => s.user);
+  const isAdmin = user?.role === 'admin';
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [deleteModal, setDeleteModal] = useState<'all' | 'presets' | null>(null);
@@ -363,53 +366,55 @@ export default function DashboardPage() {
         )}
       </motion.div>
 
-      {/* Data Management */}
-      <motion.div
-        className="mt-8 glass rounded-xl p-6"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.5 }}
-      >
-        <h2 className="text-lg font-semibold text-[#e8e8e8] mb-4">
-          Data Management
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="bg-[#1a1a2e] rounded-lg p-4 border border-[#2a2a3e]">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-[#e8e8e8] font-medium mb-1">Delete All Lineups</h3>
-                <p className="text-[#6b6b8a] text-sm">
-                  Remove all {stats?.totalLineups ?? 0} lineups from the database
-                </p>
+      {/* Data Management - Admin only */}
+      {isAdmin && (
+        <motion.div
+          className="mt-8 glass rounded-xl p-6"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+        >
+          <h2 className="text-lg font-semibold text-[#e8e8e8] mb-4">
+            Data Management
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-[#1a1a2e] rounded-lg p-4 border border-[#2a2a3e]">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-[#e8e8e8] font-medium mb-1">Delete All Lineups</h3>
+                  <p className="text-[#6b6b8a] text-sm">
+                    Remove all {stats?.totalLineups ?? 0} lineups from the database
+                  </p>
+                </div>
+                <button
+                  onClick={() => setDeleteModal('all')}
+                  className="flex items-center gap-2 px-4 py-2 bg-red-500/10 text-red-500 rounded-lg border border-red-500/30 hover:bg-red-500/20 transition-colors"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Delete All
+                </button>
               </div>
-              <button
-                onClick={() => setDeleteModal('all')}
-                className="flex items-center gap-2 px-4 py-2 bg-red-500/10 text-red-500 rounded-lg border border-red-500/30 hover:bg-red-500/20 transition-colors"
-              >
-                <Trash2 className="w-4 h-4" />
-                Delete All
-              </button>
+            </div>
+            <div className="bg-[#1a1a2e] rounded-lg p-4 border border-[#2a2a3e]">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-[#e8e8e8] font-medium mb-1">Delete Preset Lineups</h3>
+                  <p className="text-[#6b6b8a] text-sm">
+                    Remove only seeded preset lineups
+                  </p>
+                </div>
+                <button
+                  onClick={() => setDeleteModal('presets')}
+                  className="flex items-center gap-2 px-4 py-2 bg-orange-500/10 text-orange-500 rounded-lg border border-orange-500/30 hover:bg-orange-500/20 transition-colors"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Delete Presets
+                </button>
+              </div>
             </div>
           </div>
-          <div className="bg-[#1a1a2e] rounded-lg p-4 border border-[#2a2a3e]">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-[#e8e8e8] font-medium mb-1">Delete Preset Lineups</h3>
-                <p className="text-[#6b6b8a] text-sm">
-                  Remove only seeded preset lineups
-                </p>
-              </div>
-              <button
-                onClick={() => setDeleteModal('presets')}
-                className="flex items-center gap-2 px-4 py-2 bg-orange-500/10 text-orange-500 rounded-lg border border-orange-500/30 hover:bg-orange-500/20 transition-colors"
-              >
-                <Trash2 className="w-4 h-4" />
-                Delete Presets
-              </button>
-            </div>
-          </div>
-        </div>
-      </motion.div>
+        </motion.div>
+      )}
 
       {/* Delete Confirmation Modal */}
       {deleteModal && (

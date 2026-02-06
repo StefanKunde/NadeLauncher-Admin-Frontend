@@ -22,7 +22,7 @@ function LoginContent() {
 
   // Handle OAuth callback
   useEffect(() => {
-    const accessToken = searchParams.get('accessToken');
+    const token = searchParams.get('token');
     const refreshToken = searchParams.get('refreshToken');
     const errorParam = searchParams.get('error');
 
@@ -31,37 +31,26 @@ function LoginContent() {
       return;
     }
 
-    if (accessToken && refreshToken) {
+    if (token && refreshToken) {
       setLoading(true);
+      // Set tokens in store temporarily to make the API call work
+      useAuthStore.setState({ accessToken: token, refreshToken });
+
       // Fetch user data to verify role
       authApi
         .getMe()
         .then((data) => {
           if (data.user.role !== 'admin' && data.user.role !== 'worker') {
             setError('Access denied. Admin or worker role required.');
+            useAuthStore.getState().logout();
             return;
           }
           setTokens(data.accessToken, data.refreshToken, data.user);
           router.replace('/dashboard');
         })
         .catch(() => {
-          // Try with the tokens from URL
-          fetch(`${API_URL}/auth/me`, {
-            headers: { Authorization: `Bearer ${accessToken}` },
-          })
-            .then((res) => res.json())
-            .then((data) => {
-              const userData = data.data;
-              if (userData.user.role !== 'admin' && userData.user.role !== 'worker') {
-                setError('Access denied. Admin or worker role required.');
-                return;
-              }
-              setTokens(userData.accessToken || accessToken, userData.refreshToken || refreshToken, userData.user);
-              router.replace('/dashboard');
-            })
-            .catch(() => {
-              setError('Failed to authenticate. Please try again.');
-            });
+          setError('Failed to authenticate. Please try again.');
+          useAuthStore.getState().logout();
         })
         .finally(() => setLoading(false));
     }

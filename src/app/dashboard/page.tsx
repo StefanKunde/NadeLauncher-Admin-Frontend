@@ -10,8 +10,11 @@ import {
   Activity,
   TrendingUp,
   Loader2,
+  Trash2,
+  AlertTriangle,
+  X,
 } from 'lucide-react';
-import { adminStatsApi } from '@/lib/api';
+import { adminStatsApi, adminLineupsApi } from '@/lib/api';
 import type { DashboardStats } from '@/lib/types';
 import toast from 'react-hot-toast';
 
@@ -31,21 +34,50 @@ const item = {
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [deleteModal, setDeleteModal] = useState<'all' | 'presets' | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [confirmText, setConfirmText] = useState('');
+
+  const loadStats = async () => {
+    try {
+      const data = await adminStatsApi.getDashboard();
+      setStats(data);
+    } catch (error) {
+      toast.error('Failed to load dashboard stats');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const loadStats = async () => {
-      try {
-        const data = await adminStatsApi.getDashboard();
-        setStats(data);
-      } catch (error) {
-        toast.error('Failed to load dashboard stats');
-      } finally {
-        setLoading(false);
-      }
-    };
-
     loadStats();
   }, []);
+
+  const handleDelete = async () => {
+    if (!deleteModal) return;
+
+    const expectedText = deleteModal === 'all' ? 'DELETE ALL' : 'DELETE PRESETS';
+    if (confirmText !== expectedText) {
+      toast.error(`Please type "${expectedText}" to confirm`);
+      return;
+    }
+
+    setDeleting(true);
+    try {
+      const result = deleteModal === 'all'
+        ? await adminLineupsApi.deleteAll()
+        : await adminLineupsApi.deletePresets();
+
+      toast.success(`Deleted ${result.deletedCount} lineups`);
+      setDeleteModal(null);
+      setConfirmText('');
+      loadStats(); // Refresh stats
+    } catch (error) {
+      toast.error('Failed to delete lineups');
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -198,6 +230,127 @@ export default function DashboardPage() {
           </div>
         </div>
       </motion.div>
+
+      {/* Data Management */}
+      <motion.div
+        className="mt-8 glass rounded-xl p-6"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.5 }}
+      >
+        <h2 className="text-lg font-semibold text-[#e8e8e8] mb-4">
+          Data Management
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-[#1a1a2e] rounded-lg p-4 border border-[#2a2a3e]">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-[#e8e8e8] font-medium mb-1">Delete All Lineups</h3>
+                <p className="text-[#6b6b8a] text-sm">
+                  Remove all {stats?.totalLineups ?? 0} lineups from the database
+                </p>
+              </div>
+              <button
+                onClick={() => setDeleteModal('all')}
+                className="flex items-center gap-2 px-4 py-2 bg-red-500/10 text-red-500 rounded-lg border border-red-500/30 hover:bg-red-500/20 transition-colors"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete All
+              </button>
+            </div>
+          </div>
+          <div className="bg-[#1a1a2e] rounded-lg p-4 border border-[#2a2a3e]">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-[#e8e8e8] font-medium mb-1">Delete Preset Lineups</h3>
+                <p className="text-[#6b6b8a] text-sm">
+                  Remove only seeded preset lineups
+                </p>
+              </div>
+              <button
+                onClick={() => setDeleteModal('presets')}
+                className="flex items-center gap-2 px-4 py-2 bg-orange-500/10 text-orange-500 rounded-lg border border-orange-500/30 hover:bg-orange-500/20 transition-colors"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete Presets
+              </button>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Delete Confirmation Modal */}
+      {deleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <motion.div
+            className="bg-[#12121a] border border-[#2a2a3e] rounded-xl p-6 max-w-md w-full mx-4"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 rounded-lg bg-red-500/10">
+                <AlertTriangle className="w-6 h-6 text-red-500" />
+              </div>
+              <h3 className="text-xl font-semibold text-[#e8e8e8]">
+                Confirm Deletion
+              </h3>
+              <button
+                onClick={() => {
+                  setDeleteModal(null);
+                  setConfirmText('');
+                }}
+                className="ml-auto text-[#6b6b8a] hover:text-[#e8e8e8]"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-[#6b6b8a] mb-4">
+              {deleteModal === 'all'
+                ? `This will permanently delete ALL ${stats?.totalLineups ?? 0} lineups from the database. This action cannot be undone.`
+                : 'This will delete all preset lineups (seeded lineups). User-created lineups will be preserved.'}
+            </p>
+
+            <p className="text-[#e8e8e8] text-sm mb-2">
+              Type <span className="font-mono text-red-500 font-bold">
+                {deleteModal === 'all' ? 'DELETE ALL' : 'DELETE PRESETS'}
+              </span> to confirm:
+            </p>
+
+            <input
+              type="text"
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              className="w-full px-3 py-2 bg-[#0a0a0f] border border-[#2a2a3e] rounded-lg text-[#e8e8e8] focus:outline-none focus:border-red-500/50 mb-4"
+              placeholder={deleteModal === 'all' ? 'DELETE ALL' : 'DELETE PRESETS'}
+            />
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setDeleteModal(null);
+                  setConfirmText('');
+                }}
+                className="flex-1 px-4 py-2 bg-[#1a1a2e] text-[#e8e8e8] rounded-lg border border-[#2a2a3e] hover:bg-[#2a2a3e] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={deleting || confirmText !== (deleteModal === 'all' ? 'DELETE ALL' : 'DELETE PRESETS')}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {deleting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Trash2 className="w-4 h-4" />
+                )}
+                {deleting ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }

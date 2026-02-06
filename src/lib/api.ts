@@ -108,4 +108,20 @@ export const lineupsApi = {
   delete: (id: string) => api.delete(`/api/lineups/${id}`),
 };
 
+// Admin Lineups
+export const adminLineupsApi = {
+  getStats: () =>
+    api.get('/admin/lineups/stats').then((r) => unwrap<{
+      total: number;
+      presets: number;
+      userCreated: number;
+      public: number;
+      private: number;
+    }>(r.data)),
+  deleteAll: () =>
+    api.delete('/admin/lineups/all').then((r) => unwrap<{ deletedCount: number }>(r.data)),
+  deletePresets: () =>
+    api.delete('/admin/lineups/presets').then((r) => unwrap<{ deletedCount: number }>(r.data)),
+};
+
 export default api;

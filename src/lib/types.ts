@@ -133,6 +133,37 @@ export interface ProMatch {
   createdAt: string;
 }
 
+// Refresh collections result
+export interface CollectionSyncEntry {
+  name: string;
+  raw: number;
+  clustered: number;
+  added: number;
+  removed: number;
+}
+
+export interface RefreshCollectionsResult {
+  message: string;
+  lineupsFound: number;
+  maps: string[];
+  collectionsCreated: number;
+  teams?: string[];
+  players?: string[];
+  diagnostics?: {
+    totalClusters: number;
+    qualifiedClusters: number;
+    withProMatchId: number;
+    withoutProMatchId: number;
+    withDamage: number;
+    withBlind: number;
+    withFlashAssists: number;
+    pistolCount: number;
+    grenadeTypeCounts: Record<string, number>;
+    teamMapCounts: Record<string, Record<string, number>>;
+    collectionSyncLog: CollectionSyncEntry[];
+  };
+}
+
 // Session types
 export type SessionStatus = 'queued' | 'pending' | 'provisioning' | 'ready' | 'active' | 'ending' | 'ended' | 'failed';
 

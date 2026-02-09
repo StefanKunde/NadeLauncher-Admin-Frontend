@@ -10,12 +10,16 @@ import {
   XCircle,
   Clock,
   AlertCircle,
+  ChevronDown,
+  ChevronUp,
+  X,
+  Database,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { proNadesApi } from '@/lib/api';
 import { MAPS } from '@/lib/constants';
-import type { ProMatch, ProTeam, DemoStatus } from '@/lib/types';
+import type { ProMatch, ProTeam, DemoStatus, RefreshCollectionsResult } from '@/lib/types';
 
 const STATUS_CONFIG: Record<DemoStatus, { color: string; icon: React.ReactNode; label: string }> = {
   pending: { color: '#6b6b8a', icon: <Clock className="h-3.5 w-3.5" />, label: 'Pending' },
@@ -60,6 +64,12 @@ export default function ProNadesAdminPage() {
 
   // Refresh collections
   const [refreshing, setRefreshing] = useState(false);
+  const [refreshResult, setRefreshResult] = useState<RefreshCollectionsResult | null>(null);
+  const [showSyncLog, setShowSyncLog] = useState(false);
+  const [showTeamBreakdown, setShowTeamBreakdown] = useState(false);
+
+  // Recluster
+  const [reclustering, setReclustering] = useState(false);
 
   const loadData = async () => {
     try {
@@ -112,13 +122,27 @@ export default function ProNadesAdminPage() {
 
   const handleRefreshCollections = async () => {
     setRefreshing(true);
+    setRefreshResult(null);
     try {
-      await proNadesApi.refreshCollections();
-      toast.success('Collection refresh triggered');
+      const result = await proNadesApi.refreshCollections();
+      setRefreshResult(result);
+      toast.success(`Collections refreshed: ${result.collectionsCreated} created, ${result.lineupsFound} lineups`);
     } catch {
       toast.error('Failed to refresh collections');
     } finally {
       setRefreshing(false);
+    }
+  };
+
+  const handleRecluster = async () => {
+    setReclustering(true);
+    try {
+      const result = await proNadesApi.recluster();
+      toast.success(`Recluster complete: ${result.clusters} clusters from ${result.lineups} lineups`);
+    } catch {
+      toast.error('Failed to recluster');
+    } finally {
+      setReclustering(false);
     }
   };
 
@@ -154,12 +178,20 @@ export default function ProNadesAdminPage() {
         </div>
         <div className="flex items-center gap-3">
           <button
+            onClick={handleRecluster}
+            disabled={reclustering}
+            className="btn-secondary flex items-center gap-2"
+          >
+            <Database className={`h-4 w-4 ${reclustering ? 'animate-pulse' : ''}`} />
+            {reclustering ? 'Reclustering...' : 'Recluster'}
+          </button>
+          <button
             onClick={handleRefreshCollections}
             disabled={refreshing}
             className="btn-secondary flex items-center gap-2"
           >
             <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-            Refresh Collections
+            {refreshing ? 'Refreshing...' : 'Refresh Collections'}
           </button>
           <button
             onClick={() => setShowAnalyze(true)}
@@ -170,6 +202,187 @@ export default function ProNadesAdminPage() {
           </button>
         </div>
       </div>
+
+      {/* Refresh Results Panel */}
+      <AnimatePresence>
+        {refreshResult && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="mb-6 overflow-hidden"
+          >
+            <div className="rounded-xl border border-[#2a2a3e] bg-[#12121a] p-5">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="h-5 w-5 text-[#22c55e]" />
+                  <h3 className="text-sm font-semibold text-[#e8e8e8]">Refresh Results</h3>
+                </div>
+                <button
+                  onClick={() => setRefreshResult(null)}
+                  className="text-[#6b6b8a] hover:text-[#e8e8e8] transition-colors"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              {/* Summary stats */}
+              <div className="grid grid-cols-4 gap-3 mb-4">
+                <div className="rounded-lg bg-[#0a0a0f] px-3 py-2">
+                  <p className="text-lg font-bold text-[#e8e8e8]">{refreshResult.lineupsFound}</p>
+                  <p className="text-[10px] text-[#6b6b8a]">Total Pro Lineups</p>
+                </div>
+                <div className="rounded-lg bg-[#0a0a0f] px-3 py-2">
+                  <p className="text-lg font-bold text-[#e8e8e8]">{refreshResult.collectionsCreated}</p>
+                  <p className="text-[10px] text-[#6b6b8a]">Collections Created</p>
+                </div>
+                <div className="rounded-lg bg-[#0a0a0f] px-3 py-2">
+                  <p className="text-lg font-bold text-[#e8e8e8]">{refreshResult.maps.length}</p>
+                  <p className="text-[10px] text-[#6b6b8a]">Maps</p>
+                </div>
+                <div className="rounded-lg bg-[#0a0a0f] px-3 py-2">
+                  <p className="text-lg font-bold text-[#e8e8e8]">
+                    {refreshResult.diagnostics?.qualifiedClusters ?? 0}
+                    <span className="text-xs font-normal text-[#6b6b8a]">
+                      /{refreshResult.diagnostics?.totalClusters ?? 0}
+                    </span>
+                  </p>
+                  <p className="text-[10px] text-[#6b6b8a]">Qualified/Total Clusters</p>
+                </div>
+              </div>
+
+              {/* Grenade type pills */}
+              {refreshResult.diagnostics?.grenadeTypeCounts && (
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {Object.entries(refreshResult.diagnostics.grenadeTypeCounts).map(([type, count]) => (
+                    <span
+                      key={type}
+                      className="rounded-full bg-[#0a0a0f] px-3 py-1 text-xs font-medium text-[#e8e8e8]"
+                    >
+                      {type.charAt(0).toUpperCase() + type.slice(1)}: {count}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Impact data row */}
+              {refreshResult.diagnostics && (
+                <div className="flex flex-wrap gap-4 mb-4 text-xs text-[#6b6b8a]">
+                  <span>With match ID: {refreshResult.diagnostics.withProMatchId}</span>
+                  <span>With damage: {refreshResult.diagnostics.withDamage}</span>
+                  <span>With blinds: {refreshResult.diagnostics.withBlind}</span>
+                  <span>Flash assists: {refreshResult.diagnostics.withFlashAssists}</span>
+                  <span>Pistol rounds: {refreshResult.diagnostics.pistolCount}</span>
+                </div>
+              )}
+
+              {/* Maps list */}
+              {refreshResult.maps.length > 0 && (
+                <div className="mb-4 text-xs text-[#6b6b8a]">
+                  Maps: {refreshResult.maps.map((m) => m.replace(/^de_/, '').replace(/^\w/, (c) => c.toUpperCase())).join(', ')}
+                </div>
+              )}
+
+              {/* Collection Sync Log (collapsible) */}
+              {refreshResult.diagnostics?.collectionSyncLog && refreshResult.diagnostics.collectionSyncLog.length > 0 && (
+                <div className="mb-3">
+                  <button
+                    onClick={() => setShowSyncLog(!showSyncLog)}
+                    className="flex items-center gap-1 text-xs font-medium text-[#f0a500] hover:text-[#f0a500]/80 transition-colors"
+                  >
+                    {showSyncLog ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                    Collection Sync Log ({refreshResult.diagnostics.collectionSyncLog.length})
+                  </button>
+
+                  <AnimatePresence>
+                    {showSyncLog && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="mt-2 max-h-64 overflow-y-auto rounded-lg border border-[#2a2a3e]">
+                          <table className="w-full text-xs">
+                            <thead className="sticky top-0 bg-[#0a0a0f]">
+                              <tr className="text-[#6b6b8a]">
+                                <th className="text-left px-3 py-2 font-medium">Collection</th>
+                                <th className="text-right px-3 py-2 font-medium">Raw</th>
+                                <th className="text-right px-3 py-2 font-medium">Clustered</th>
+                                <th className="text-right px-3 py-2 font-medium">Added</th>
+                                <th className="text-right px-3 py-2 font-medium">Removed</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {refreshResult.diagnostics.collectionSyncLog.map((entry, i) => (
+                                <tr key={i} className="border-t border-[#2a2a3e]">
+                                  <td className="px-3 py-1.5 text-[#e8e8e8] truncate max-w-64">{entry.name}</td>
+                                  <td className="px-3 py-1.5 text-right text-[#6b6b8a]">{entry.raw}</td>
+                                  <td className="px-3 py-1.5 text-right text-[#6b6b8a]">{entry.clustered}</td>
+                                  <td className={`px-3 py-1.5 text-right ${entry.added > 0 ? 'text-[#22c55e]' : 'text-[#6b6b8a]'}`}>
+                                    {entry.added > 0 ? `+${entry.added}` : '0'}
+                                  </td>
+                                  <td className={`px-3 py-1.5 text-right ${entry.removed > 0 ? 'text-[#ff4444]' : 'text-[#6b6b8a]'}`}>
+                                    {entry.removed > 0 ? `-${entry.removed}` : '0'}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              )}
+
+              {/* Team Breakdown (collapsible) */}
+              {refreshResult.diagnostics?.teamMapCounts && Object.keys(refreshResult.diagnostics.teamMapCounts).length > 0 && (
+                <div>
+                  <button
+                    onClick={() => setShowTeamBreakdown(!showTeamBreakdown)}
+                    className="flex items-center gap-1 text-xs font-medium text-[#f0a500] hover:text-[#f0a500]/80 transition-colors"
+                  >
+                    {showTeamBreakdown ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                    Team Breakdown ({Object.keys(refreshResult.diagnostics.teamMapCounts).length} teams)
+                  </button>
+
+                  <AnimatePresence>
+                    {showTeamBreakdown && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="mt-2 max-h-48 overflow-y-auto space-y-1">
+                          {Object.entries(refreshResult.diagnostics.teamMapCounts)
+                            .sort(([a], [b]) => a.localeCompare(b))
+                            .map(([team, maps]) => (
+                              <div key={team} className="flex items-center gap-2 text-xs">
+                                <span className="font-medium text-[#e8e8e8] w-24 truncate">{team}</span>
+                                <div className="flex flex-wrap gap-1">
+                                  {Object.entries(maps).map(([map, count]) => (
+                                    <span
+                                      key={map}
+                                      className="rounded bg-[#0a0a0f] px-2 py-0.5 text-[#6b6b8a]"
+                                    >
+                                      {map.replace(/^de_/, '')}: {count}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Stats cards */}
       <div className="grid grid-cols-3 gap-4 mb-8">

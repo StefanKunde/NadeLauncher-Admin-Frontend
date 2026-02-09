@@ -13,6 +13,7 @@ import type {
   ProTeam,
   ProPlayer,
   ProMatch,
+  RefreshCollectionsResult,
 } from './types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://nadelauncher-backend-a99d397c.apps.deploypilot.stefankunde.dev';
@@ -166,7 +167,9 @@ export const proNadesApi = {
     hltvMatchId?: number;
   }) => api.post('/api/pro-nades/analyze', data).then((r) => extract<ProMatch>(r)),
   refreshCollections: () =>
-    api.post('/api/pro-nades/refresh-collections').then((r) => r.data),
+    api.post('/api/pro-nades/refresh-collections').then((r) => extract<RefreshCollectionsResult>(r)),
+  recluster: () =>
+    api.post('/api/pro-nades/recluster').then((r) => extract<{ message: string; clusters: number; lineups: number }>(r)),
 };
 
 export default api;

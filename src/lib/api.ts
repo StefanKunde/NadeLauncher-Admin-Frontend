@@ -10,6 +10,9 @@ import type {
   Lineup,
   UserRole,
   Session,
+  ProTeam,
+  ProPlayer,
+  ProMatch,
 } from './types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://nadelauncher-backend-a99d397c.apps.deploypilot.stefankunde.dev';
@@ -135,6 +138,34 @@ export const adminSessionsApi = {
     api.get('/admin/sessions/running').then((r) => unwrap<Session[]>(r.data)),
   end: (id: string) =>
     api.post(`/admin/sessions/${id}/end`).then((r) => r.data),
+};
+
+// Pro Nades
+export const proNadesApi = {
+  getTeams: () =>
+    api.get('/api/pro-nades/teams').then((r) => extract<ProTeam[]>(r)),
+  getPlayers: () =>
+    api.get('/api/pro-nades/players').then((r) => extract<ProPlayer[]>(r)),
+  getMatches: () =>
+    api.get('/api/pro-nades/matches').then((r) => extract<ProMatch[]>(r)),
+  getMatch: (id: string) =>
+    api.get(`/api/pro-nades/matches/${id}`).then((r) => extract<ProMatch>(r)),
+  createTeam: (data: { name: string; hltvId?: number; logoUrl?: string }) =>
+    api.post('/api/pro-nades/teams', data).then((r) => extract<ProTeam>(r)),
+  createPlayer: (data: { nickname: string; steamId: string; teamId?: string; hltvId?: number }) =>
+    api.post('/api/pro-nades/players', data).then((r) => extract<ProPlayer>(r)),
+  analyze: (data: {
+    url: string;
+    mapName: string;
+    matchDate: string;
+    team1Name?: string;
+    team2Name?: string;
+    eventName?: string;
+    score?: string;
+    hltvMatchId?: number;
+  }) => api.post('/api/pro-nades/analyze', data).then((r) => extract<ProMatch>(r)),
+  refreshCollections: () =>
+    api.post('/api/pro-nades/refresh-collections').then((r) => r.data),
 };
 
 export default api;

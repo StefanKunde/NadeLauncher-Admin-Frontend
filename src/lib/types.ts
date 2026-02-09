@@ -84,6 +84,55 @@ export interface UsageStatsData {
   topUsers: { userId: string; username: string; totalSeconds: number }[];
 }
 
+// Pro Nades types
+export type DemoStatus = 'pending' | 'downloading' | 'extracting' | 'analyzing' | 'completed' | 'failed';
+
+export interface ProTeam {
+  id: string;
+  name: string;
+  hltvId?: number;
+  logoUrl?: string;
+  createdAt: string;
+}
+
+export interface ProPlayer {
+  id: string;
+  nickname: string;
+  steamId: string;
+  teamId?: string;
+  teamName?: string;
+  hltvId?: number;
+  createdAt: string;
+}
+
+export interface ProDemo {
+  id: string;
+  matchId?: string;
+  fileName: string;
+  sourceUrl?: string;
+  status: DemoStatus;
+  errorMessage?: string;
+  throwsExtracted: number;
+  patternsDetected: number;
+  processedAt?: string;
+  createdAt: string;
+}
+
+export interface ProMatch {
+  id: string;
+  hltvMatchId?: number;
+  team1Id?: string;
+  team2Id?: string;
+  team1Name?: string;
+  team2Name?: string;
+  mapName: string;
+  matchDate: string;
+  eventName?: string;
+  score?: string;
+  demos: ProDemo[];
+  createdAt: string;
+}
+
 // Session types
 export type SessionStatus = 'queued' | 'pending' | 'provisioning' | 'ready' | 'active' | 'ending' | 'ended' | 'failed';
 

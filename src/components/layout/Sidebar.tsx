@@ -12,6 +12,7 @@ import {
   Shield,
   Crown,
   Server,
+  Trophy,
 } from 'lucide-react';
 import { useAuthStore } from '@/store/auth-store';
 
@@ -19,6 +20,7 @@ const NAV_ITEMS = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { href: '/dashboard/users', icon: Users, label: 'Users' },
   { href: '/dashboard/collections', icon: FolderOpen, label: 'Collections' },
+  { href: '/dashboard/pro-nades', icon: Trophy, label: 'Pro Nades' },
   { href: '/dashboard/editor', icon: Server, label: 'Editor' },
 ];
 

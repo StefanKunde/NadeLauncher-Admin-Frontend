@@ -12,6 +12,8 @@ import {
   ChevronDown,
   Loader2,
   ExternalLink,
+  Trash2,
+  AlertTriangle,
 } from 'lucide-react';
 import { adminUsersApi } from '@/lib/api';
 import { useAuthStore } from '@/store/auth-store';
@@ -25,6 +27,8 @@ export default function UsersPage() {
   const [filterRole, setFilterRole] = useState<string>('all');
   const [filterPremium, setFilterPremium] = useState<string>('all');
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<AdminUser | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const { user: currentUser } = useAuthStore();
 
   useEffect(() => {
@@ -82,6 +86,21 @@ export default function UsersPage() {
       toast.error('Failed to update premium status');
     } finally {
       setUpdatingId(null);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await adminUsersApi.delete(deleteTarget.id);
+      setUsers((prev) => prev.filter((u) => u.id !== deleteTarget.id));
+      toast.success(`Deleted user "${deleteTarget.username}"`);
+      setDeleteTarget(null);
+    } catch (error) {
+      toast.error('Failed to delete user');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -295,6 +314,18 @@ export default function UsersPage() {
                         )}
                       </button>
                     )}
+
+                    {/* Delete button (admin only, not self) */}
+                    {currentUser?.role === 'admin' && user.id !== currentUser.id && (
+                      <button
+                        onClick={() => setDeleteTarget(user)}
+                        disabled={updatingId === user.id}
+                        className="p-1.5 rounded-lg text-[#6b6b8a] hover:text-[#ff4444] hover:bg-[#ff4444]/10 border border-transparent hover:border-[#ff4444]/30 transition-all disabled:opacity-50"
+                        title="Delete user"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                   </div>
                 </td>
               </tr>
@@ -316,6 +347,80 @@ export default function UsersPage() {
           Showing {filteredUsers.length} of {users.length} users
         </p>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => !deleting && setDeleteTarget(null)}
+          />
+          <motion.div
+            className="relative bg-[#12121a] border border-[#2a2a3e] rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2.5 rounded-xl bg-[#ff4444]/10 border border-[#ff4444]/20">
+                <AlertTriangle className="w-5 h-5 text-[#ff4444]" />
+              </div>
+              <h3 className="text-lg font-semibold text-[#e8e8e8]">Delete User</h3>
+            </div>
+
+            <p className="text-[#9a9ab0] mb-2">
+              Are you sure you want to delete this user? This action cannot be undone.
+            </p>
+            <div className="bg-[#1a1a2e] border border-[#2a2a3e] rounded-xl p-3 mb-6">
+              <div className="flex items-center gap-3">
+                <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-full bg-[#0a0a0f]">
+                  {deleteTarget.avatar ? (
+                    <Image
+                      src={deleteTarget.avatar}
+                      alt={deleteTarget.username}
+                      fill
+                      className="object-cover"
+                      unoptimized
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-xs font-bold text-[#6b6b8a]">
+                      {deleteTarget.username.slice(0, 2).toUpperCase()}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <p className="font-medium text-[#e8e8e8]">{deleteTarget.username}</p>
+                  <p className="text-xs text-[#6b6b8a]">{deleteTarget.steamId}</p>
+                </div>
+              </div>
+            </div>
+            <p className="text-xs text-[#6b6b8a] mb-6">
+              All associated data (lineups, sessions, subscriptions) will be permanently deleted.
+            </p>
+
+            <div className="flex items-center justify-end gap-3">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleting}
+                className="px-4 py-2 rounded-xl text-sm text-[#9a9ab0] hover:text-[#e8e8e8] border border-[#2a2a3e] hover:border-[#3a3a5e] transition-all disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="px-4 py-2 rounded-xl text-sm font-medium bg-[#ff4444] text-white hover:bg-[#ff5555] transition-all disabled:opacity-50 flex items-center gap-2"
+              >
+                {deleting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Trash2 className="h-4 w-4" />
+                )}
+                Delete User
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }

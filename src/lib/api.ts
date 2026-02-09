@@ -78,6 +78,7 @@ export const adminUsersApi = {
     api.put(`/admin/users/${id}/role`, { role }).then((r) => unwrap<AdminUser>(r.data)),
   updatePremium: (id: string, isPremium: boolean) =>
     api.put(`/admin/users/${id}/premium`, { isPremium }).then((r) => unwrap<AdminUser>(r.data)),
+  delete: (id: string) => api.delete(`/admin/users/${id}`),
 };
 
 // Admin Stats

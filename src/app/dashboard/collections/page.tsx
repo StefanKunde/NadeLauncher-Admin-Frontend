@@ -12,6 +12,7 @@ import {
   Edit2,
   Trash2,
   Target,
+  Download,
 } from 'lucide-react';
 import { collectionsApi } from '@/lib/api';
 import { useAuthStore } from '@/store/auth-store';
@@ -45,6 +46,7 @@ export default function CollectionsPage() {
   const [formData, setFormData] = useState<CollectionFormData>(initialFormData);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const { user } = useAuthStore();
 
   useEffect(() => {
@@ -136,6 +138,36 @@ export default function CollectionsPage() {
       toast.error('Failed to delete collection');
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const handleExportJson = async (collection: LineupCollection) => {
+    setDownloadingId(collection.id);
+    try {
+      const data = await collectionsApi.getById(collection.id);
+      const exportData = {
+        collection: {
+          id: data.collection.id,
+          name: data.collection.name,
+          description: data.collection.description,
+          mapName: data.collection.mapName,
+        },
+        lineups: data.lineups.map(({ movementPath, ...lineup }) => lineup),
+      };
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${collection.name.replace(/[^a-zA-Z0-9-_ ]/g, '').replace(/\s+/g, '-').toLowerCase()}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success(`Exported ${data.lineups.length} lineups`);
+    } catch {
+      toast.error('Failed to export collection');
+    } finally {
+      setDownloadingId(null);
     }
   };
 
@@ -314,6 +346,20 @@ export default function CollectionsPage() {
                         </div>
 
                         <div className="flex items-center gap-2">
+                          {user?.role === 'admin' && (
+                            <button
+                              onClick={() => handleExportJson(collection)}
+                              disabled={downloadingId === collection.id}
+                              className="p-2 rounded-lg bg-[#1a1a2e] text-[#6b6b8a] hover:text-[#22c55e] hover:border-[#22c55e]/30 border border-[#2a2a3e] transition-all disabled:opacity-50"
+                              title="Export as JSON"
+                            >
+                              {downloadingId === collection.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Download className="h-4 w-4" />
+                              )}
+                            </button>
+                          )}
                           <button
                             onClick={() => openEditModal(collection)}
                             className="p-2 rounded-lg bg-[#1a1a2e] text-[#6b6b8a] hover:text-[#f0a500] hover:border-[#f0a500]/30 border border-[#2a2a3e] transition-all"

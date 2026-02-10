@@ -37,6 +37,25 @@ export interface Lineup {
   instructions: string[];
   difficulty: 'easy' | 'medium' | 'hard';
   tags: string[];
+  // Pro demo metadata
+  playerName?: string;
+  teamName?: string;
+  teamSide?: string;
+  roundNumber?: number;
+  roundTimeSeconds?: number;
+  roundWon?: boolean;
+  playersAliveCt?: number;
+  playersAliveT?: number;
+  isPistolRound?: boolean;
+  totalDamage?: number;
+  enemiesBlinded?: number;
+  totalBlindDuration?: number;
+  flashAssists?: number;
+  proMatchId?: string;
+  proDemoId?: string;
+  fixPointIndex?: number;
+  collectionId?: string;
+  collectionName?: string;
   createdAt: string;
   updatedAt: string;
 }

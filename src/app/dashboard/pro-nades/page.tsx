@@ -132,11 +132,10 @@ export default function ProNadesAdminPage() {
     setRefreshing(true);
     setRefreshResult(null);
     try {
-      const result = await proNadesApi.refreshCollections();
-      setRefreshResult(result);
-      toast.success(`Collections refreshed: ${result.collectionsCreated} created, ${result.lineupsFound} lineups`);
+      await proNadesApi.refreshCollections();
+      toast.success('Full pipeline started in background: recluster → fix-points → collections → AI curation');
     } catch {
-      toast.error('Failed to refresh collections');
+      toast.error('Failed to start pipeline');
     } finally {
       setRefreshing(false);
     }
@@ -213,6 +212,7 @@ export default function ProNadesAdminPage() {
             onClick={handleRecluster}
             disabled={reclustering}
             className="btn-secondary flex items-center gap-2"
+            title="Group similar lineups into clusters. Run after importing new demos."
           >
             <Database className={`h-4 w-4 ${reclustering ? 'animate-pulse' : ''}`} />
             {reclustering ? 'Reclustering...' : 'Recluster'}
@@ -221,6 +221,7 @@ export default function ProNadesAdminPage() {
             onClick={handleReprocessFixPoints}
             disabled={reprocessing}
             className="btn-secondary flex items-center gap-2"
+            title="Recalculate throw positions and angles for all lineups. Run after reclustering."
           >
             <Crosshair className={`h-4 w-4 ${reprocessing ? 'animate-pulse' : ''}`} />
             {reprocessing ? 'Reprocessing...' : 'Fix Points'}
@@ -229,6 +230,7 @@ export default function ProNadesAdminPage() {
             onClick={handleReCurate}
             disabled={reCurating}
             className="btn-secondary flex items-center gap-2"
+            title="Reset all AI decisions and re-run AI curation from scratch. Use after prompt changes."
           >
             <Sparkles className={`h-4 w-4 ${reCurating ? 'animate-pulse' : ''}`} />
             {reCurating ? 'Re-curating...' : 'Re-curate AI'}
@@ -237,17 +239,31 @@ export default function ProNadesAdminPage() {
             onClick={handleRefreshCollections}
             disabled={refreshing}
             className="btn-secondary flex items-center gap-2"
+            title="Incremental pipeline: cluster new lineups → fix-points → collections → AI curation (only new lineups). Use after uploading new demos."
           >
             <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-            {refreshing ? 'Refreshing...' : 'Refresh Collections'}
+            {refreshing ? 'Running Pipeline...' : 'Refresh All'}
           </button>
           <button
             onClick={() => setShowAnalyze(true)}
             className="btn-primary flex items-center gap-2"
+            title="Upload a demo .rar URL for analysis."
           >
             <Upload className="h-4 w-4" />
             Analyze Demo
           </button>
+        </div>
+      </div>
+
+      {/* Workflow Help */}
+      <div className="mb-6 rounded-xl border border-[#2a2a3e] bg-[#12121a] px-5 py-4">
+        <p className="text-xs font-semibold text-[#e8e8e8] mb-2">Workflow</p>
+        <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs text-[#6b6b8a]">
+          <div><span className="text-[#e8e8e8] font-medium">Analyze Demo</span> — Upload a demo URL. The worker downloads, extracts, and detects throws.</div>
+          <div><span className="text-[#e8e8e8] font-medium">Refresh All</span> — Clusters new lineups, computes fix-points, rebuilds collections, and AI-curates new lineups only. Use after uploading new demos.</div>
+          <div><span className="text-[#e8e8e8] font-medium">Recluster</span> — Drops all clusters and rebuilds from scratch. Use when clustering logic changes or data needs a full reset.</div>
+          <div><span className="text-[#e8e8e8] font-medium">Fix Points</span> — Recalculates throw positions and angles from movement paths for all lineups. Run after reclustering.</div>
+          <div><span className="text-[#e8e8e8] font-medium">Re-curate AI</span> — Resets ALL AI decisions and re-runs curation from scratch. Use after AI prompt changes. Costs API credits for every lineup.</div>
         </div>
       </div>
 

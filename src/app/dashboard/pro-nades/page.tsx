@@ -132,10 +132,11 @@ export default function ProNadesAdminPage() {
     setRefreshing(true);
     setRefreshResult(null);
     try {
-      await proNadesApi.refreshCollections();
-      toast.success('Full pipeline started in background: recluster → fix-points → collections → AI curation');
+      const result = await proNadesApi.refreshCollections();
+      setRefreshResult(result);
+      toast.success('Pipeline complete');
     } catch {
-      toast.error('Failed to start pipeline');
+      toast.error('Pipeline failed');
     } finally {
       setRefreshing(false);
     }
@@ -314,6 +315,30 @@ export default function ProNadesAdminPage() {
                   <p className="text-[10px] text-[#6b6b8a]">Qualified/Total Clusters</p>
                 </div>
               </div>
+
+              {/* Pipeline steps summary */}
+              {refreshResult.pipeline && (
+                <div className="grid grid-cols-3 gap-3 mb-4">
+                  <div className="rounded-lg bg-[#0a0a0f] px-3 py-2">
+                    <p className="text-sm font-bold text-[#e8e8e8]">
+                      {refreshResult.pipeline.clustering.assigned} assigned, {refreshResult.pipeline.clustering.newClusters} new
+                    </p>
+                    <p className="text-[10px] text-[#6b6b8a]">Clustering</p>
+                  </div>
+                  <div className="rounded-lg bg-[#0a0a0f] px-3 py-2">
+                    <p className="text-sm font-bold text-[#e8e8e8]">
+                      {refreshResult.pipeline.fixPoints.processed} processed, {refreshResult.pipeline.fixPoints.skipped} skipped
+                    </p>
+                    <p className="text-[10px] text-[#6b6b8a]">Fix Points</p>
+                  </div>
+                  <div className="rounded-lg bg-[#0a0a0f] px-3 py-2">
+                    <p className="text-sm font-bold text-[#e8e8e8]">
+                      {refreshResult.pipeline.aiCuration.reviewed} reviewed, {refreshResult.pipeline.aiCuration.kept} kept, {refreshResult.pipeline.aiCuration.removed} removed
+                    </p>
+                    <p className="text-[10px] text-[#6b6b8a]">AI Curation</p>
+                  </div>
+                </div>
+              )}
 
               {/* Grenade type pills */}
               {refreshResult.diagnostics?.grenadeTypeCounts && (

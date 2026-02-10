@@ -162,7 +162,6 @@ export interface CollectionSyncEntry {
 }
 
 export interface RefreshCollectionsResult {
-  message: string;
   lineupsFound: number;
   maps: string[];
   collectionsCreated: number;
@@ -180,6 +179,11 @@ export interface RefreshCollectionsResult {
     grenadeTypeCounts: Record<string, number>;
     teamMapCounts: Record<string, Record<string, number>>;
     collectionSyncLog: CollectionSyncEntry[];
+  };
+  pipeline?: {
+    clustering: { assigned: number; newClusters: number };
+    fixPoints: { processed: number; skipped: number };
+    aiCuration: { reviewed: number; kept: number; removed: number };
   };
 }
 

@@ -172,6 +172,8 @@ export const proNadesApi = {
     api.post('/api/pro-nades/recluster').then((r) => extract<{ message: string; clusters: number; lineups: number }>(r)),
   reprocessFixPoints: () =>
     api.post('/api/pro-nades/reprocess-fix-points').then((r) => extract<{ message: string }>(r)),
+  reCurate: () =>
+    api.post('/api/pro-nades/re-curate').then((r) => extract<{ message: string }>(r)),
 };
 
 export default api;

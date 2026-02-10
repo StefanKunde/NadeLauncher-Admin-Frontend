@@ -15,6 +15,7 @@ import {
   X,
   Database,
   Crosshair,
+  Sparkles,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
@@ -74,6 +75,9 @@ export default function ProNadesAdminPage() {
 
   // Reprocess fix points
   const [reprocessing, setReprocessing] = useState(false);
+
+  // Re-curate AI
+  const [reCurating, setReCurating] = useState(false);
 
   const loadData = async () => {
     try {
@@ -162,6 +166,18 @@ export default function ProNadesAdminPage() {
     }
   };
 
+  const handleReCurate = async () => {
+    setReCurating(true);
+    try {
+      const result = await proNadesApi.reCurate();
+      toast.success(result.message || 'AI re-curation started');
+    } catch {
+      toast.error('Failed to start AI re-curation');
+    } finally {
+      setReCurating(false);
+    }
+  };
+
   const formatDate = (date: string) => {
     return new Date(date).toLocaleDateString('en-US', {
       year: 'numeric',
@@ -208,6 +224,14 @@ export default function ProNadesAdminPage() {
           >
             <Crosshair className={`h-4 w-4 ${reprocessing ? 'animate-pulse' : ''}`} />
             {reprocessing ? 'Reprocessing...' : 'Fix Points'}
+          </button>
+          <button
+            onClick={handleReCurate}
+            disabled={reCurating}
+            className="btn-secondary flex items-center gap-2"
+          >
+            <Sparkles className={`h-4 w-4 ${reCurating ? 'animate-pulse' : ''}`} />
+            {reCurating ? 'Re-curating...' : 'Re-curate AI'}
           </button>
           <button
             onClick={handleRefreshCollections}

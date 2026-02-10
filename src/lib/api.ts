@@ -170,6 +170,8 @@ export const proNadesApi = {
     api.post('/api/pro-nades/refresh-collections').then((r) => extract<RefreshCollectionsResult>(r)),
   recluster: () =>
     api.post('/api/pro-nades/recluster').then((r) => extract<{ message: string; clusters: number; lineups: number }>(r)),
+  reprocessFixPoints: () =>
+    api.post('/api/pro-nades/reprocess-fix-points').then((r) => extract<{ message: string }>(r)),
 };
 
 export default api;

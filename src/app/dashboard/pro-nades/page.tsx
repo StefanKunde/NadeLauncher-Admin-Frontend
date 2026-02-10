@@ -14,6 +14,7 @@ import {
   ChevronUp,
   X,
   Database,
+  Crosshair,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
@@ -70,6 +71,9 @@ export default function ProNadesAdminPage() {
 
   // Recluster
   const [reclustering, setReclustering] = useState(false);
+
+  // Reprocess fix points
+  const [reprocessing, setReprocessing] = useState(false);
 
   const loadData = async () => {
     try {
@@ -146,6 +150,18 @@ export default function ProNadesAdminPage() {
     }
   };
 
+  const handleReprocessFixPoints = async () => {
+    setReprocessing(true);
+    try {
+      await proNadesApi.reprocessFixPoints();
+      toast.success('Fix-point reprocessing started in background');
+    } catch {
+      toast.error('Failed to start fix-point reprocessing');
+    } finally {
+      setReprocessing(false);
+    }
+  };
+
   const formatDate = (date: string) => {
     return new Date(date).toLocaleDateString('en-US', {
       year: 'numeric',
@@ -184,6 +200,14 @@ export default function ProNadesAdminPage() {
           >
             <Database className={`h-4 w-4 ${reclustering ? 'animate-pulse' : ''}`} />
             {reclustering ? 'Reclustering...' : 'Recluster'}
+          </button>
+          <button
+            onClick={handleReprocessFixPoints}
+            disabled={reprocessing}
+            className="btn-secondary flex items-center gap-2"
+          >
+            <Crosshair className={`h-4 w-4 ${reprocessing ? 'animate-pulse' : ''}`} />
+            {reprocessing ? 'Reprocessing...' : 'Fix Points'}
           </button>
           <button
             onClick={handleRefreshCollections}

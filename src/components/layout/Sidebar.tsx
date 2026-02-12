@@ -68,7 +68,7 @@ export default function Sidebar() {
         <Link href="/dashboard" className="block">
           <h1 className="text-xl font-extrabold tracking-wider">
             <span className="text-gradient-gold">NADE</span>
-            <span className="text-[#e8e8e8]">LAUNCHER</span>
+            <span className="text-[#e8e8e8]">PRO</span>
           </h1>
           <p className="mt-1 text-xs font-medium tracking-widest text-[#6b6b8a] uppercase">
             Admin Panel

@@ -190,7 +190,7 @@ export default function DashboardPage() {
       {/* Page Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gradient-gold mb-2">Dashboard</h1>
-        <p className="text-[#6b6b8a]">Overview of NadeLauncher statistics</p>
+        <p className="text-[#6b6b8a]">Overview of NadePro statistics</p>
       </div>
 
       {/* Stats Grid */}

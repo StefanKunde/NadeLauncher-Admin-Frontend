@@ -9,8 +9,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'NadeLauncher Admin',
-  description: 'Admin panel for NadeLauncher CS2 Practice Tool',
+  title: 'NadePro Admin',
+  description: 'Admin panel for NadePro CS2 Practice Tool',
 };
 
 export default function RootLayout({

@@ -81,7 +81,7 @@ function LoginContent() {
           <div className="text-center mb-8">
             <h1 className="text-2xl font-extrabold tracking-wider mb-2">
               <span className="text-gradient-gold">NADE</span>
-              <span className="text-[#e8e8e8]">LAUNCHER</span>
+              <span className="text-[#e8e8e8]">PRO</span>
             </h1>
             <p className="text-[#6b6b8a] text-sm">Admin Panel</p>
           </div>

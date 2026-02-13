@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   FolderOpen,
@@ -55,6 +55,9 @@ export default function CollectionsPage() {
   const [loadingLineups, setLoadingLineups] = useState(false);
   const [hidingLineupId, setHidingLineupId] = useState<string | null>(null);
   const [selectedLineupId, setSelectedLineupId] = useState<string | null>(null);
+  const [hideModalLineup, setHideModalLineup] = useState<Lineup | null>(null);
+  const [hideReason, setHideReason] = useState('');
+  const lineupListRef = useRef<HTMLDivElement>(null);
   const { user } = useAuthStore();
 
   useEffect(() => {
@@ -200,20 +203,32 @@ export default function CollectionsPage() {
     }
   };
 
-  const handleHideLineup = async (lineup: Lineup) => {
-    const reason = prompt('Reason for hiding (optional):');
-    if (reason === null) return; // cancelled
+  const selectLineup = useCallback((lineupId: string | null) => {
+    setSelectedLineupId(lineupId);
+    if (lineupId && lineupListRef.current) {
+      const el = lineupListRef.current.querySelector(`[data-lineup-id="${lineupId}"]`);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, []);
 
-    setHidingLineupId(lineup.id);
+  const openHideModal = (lineup: Lineup) => {
+    setHideModalLineup(lineup);
+    setHideReason('');
+  };
+
+  const confirmHide = async () => {
+    if (!hideModalLineup) return;
+    setHidingLineupId(hideModalLineup.id);
     try {
-      await hiddenLineupsApi.hide(lineup.id, reason || undefined);
-      setExpandedLineups((prev) => prev.filter((l) => l.id !== lineup.id));
+      await hiddenLineupsApi.hide(hideModalLineup.id, hideReason || undefined);
+      setExpandedLineups((prev) => prev.filter((l) => l.id !== hideModalLineup.id));
       setCollections((prev) =>
         prev.map((c) =>
           c.id === expandedId ? { ...c, lineupCount: c.lineupCount - 1 } : c,
         ),
       );
-      toast.success(`Hidden: ${lineup.name}`);
+      toast.success(`Hidden: ${hideModalLineup.name}`);
+      setHideModalLineup(null);
     } catch {
       toast.error('Failed to hide lineup');
     } finally {
@@ -462,28 +477,29 @@ export default function CollectionsPage() {
                               ) : expandedLineups.length === 0 ? (
                                 <p className="text-sm text-[#6b6b8a] text-center py-4">No lineups in this collection</p>
                               ) : (
-                                <div className="flex gap-4">
+                                <div className="flex gap-6">
                                   {/* Map Radar */}
-                                  <div className="w-80 shrink-0">
+                                  <div className="w-[480px] shrink-0">
                                     <MapRadar
                                       mapName={collection.mapName}
                                       lineups={expandedLineups}
                                       selectedLineupId={selectedLineupId}
-                                      onLineupClick={(l) => setSelectedLineupId(l.id === selectedLineupId ? null : l.id)}
+                                      onLineupClick={(l) => selectLineup(l.id === selectedLineupId ? null : l.id)}
                                     />
                                   </div>
                                   {/* Lineup List */}
-                                  <div className="flex-1 space-y-1 max-h-80 overflow-y-auto">
+                                  <div ref={lineupListRef} className="flex-1 space-y-1 max-h-[480px] overflow-y-auto">
                                     {expandedLineups.map((lineup) => {
                                       const gt = GRENADE_TYPES[lineup.grenadeType];
                                       const isSelected = lineup.id === selectedLineupId;
                                       return (
                                         <div
                                           key={lineup.id}
+                                          data-lineup-id={lineup.id}
                                           className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors group cursor-pointer ${
                                             isSelected ? 'bg-[#1a1a2e] ring-1 ring-[#f0a500]/30' : 'hover:bg-[#1a1a2e]'
                                           }`}
-                                          onClick={() => setSelectedLineupId(isSelected ? null : lineup.id)}
+                                          onClick={() => selectLineup(isSelected ? null : lineup.id)}
                                         >
                                           <span
                                             className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase shrink-0"
@@ -507,7 +523,7 @@ export default function CollectionsPage() {
                                           </span>
                                           {user?.role === 'admin' && (
                                             <button
-                                              onClick={(e) => { e.stopPropagation(); handleHideLineup(lineup); }}
+                                              onClick={(e) => { e.stopPropagation(); openHideModal(lineup); }}
                                               disabled={hidingLineupId === lineup.id}
                                               className="p-1.5 rounded-lg text-[#6b6b8a] hover:text-[#ff4444] hover:bg-[#ff4444]/10 transition-all opacity-0 group-hover:opacity-100 disabled:opacity-50 shrink-0"
                                               title="Hide from all pro collections"
@@ -663,6 +679,81 @@ export default function CollectionsPage() {
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      {/* Hide Lineup Modal */}
+      <AnimatePresence>
+        {hideModalLineup && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+            onClick={() => setHideModalLineup(null)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="glass rounded-2xl p-6 w-full max-w-md mx-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 rounded-lg bg-[#ff4444]/10">
+                  <EyeOff className="w-5 h-5 text-[#ff4444]" />
+                </div>
+                <h2 className="text-lg font-bold text-[#e8e8e8]">Hide Lineup</h2>
+              </div>
+
+              <p className="text-sm text-[#6b6b8a] mb-1">
+                This will hide the following lineup from all pro collections:
+              </p>
+              <p className="text-sm text-[#e8e8e8] font-medium mb-4">
+                {hideModalLineup.name}
+              </p>
+
+              <div className="mb-5">
+                <label className="block text-sm font-medium text-[#6b6b8a] mb-2">
+                  Reason (optional)
+                </label>
+                <textarea
+                  value={hideReason}
+                  onChange={(e) => setHideReason(e.target.value)}
+                  className="w-full resize-none bg-[#12121a] border border-[#2a2a3e] rounded-xl text-sm text-[#e8e8e8] placeholder-[#6b6b8a]/50 focus:outline-none focus:border-[#f0a500]/40 transition-colors p-3"
+                  rows={2}
+                  placeholder="e.g., Duplicate, doesn't work anymore, bad lineup..."
+                  autoFocus
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setHideModalLineup(null)}
+                  className="btn-secondary flex-1"
+                  disabled={hidingLineupId === hideModalLineup.id}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmHide}
+                  disabled={hidingLineupId === hideModalLineup.id}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-[#ff4444]/10 text-[#ff4444] border border-[#ff4444]/30 hover:bg-[#ff4444]/20 transition-all disabled:opacity-50"
+                >
+                  {hidingLineupId === hideModalLineup.id ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Hiding...
+                    </>
+                  ) : (
+                    <>
+                      <EyeOff className="h-4 w-4" />
+                      Hide Lineup
+                    </>
+                  )}
+                </button>
+              </div>
             </motion.div>
           </motion.div>
         )}

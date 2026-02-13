@@ -20,6 +20,7 @@ import { collectionsApi, hiddenLineupsApi } from '@/lib/api';
 import { useAuthStore } from '@/store/auth-store';
 import { MAPS, MAP_COLORS, GRENADE_TYPES } from '@/lib/constants';
 import type { LineupCollection, Lineup } from '@/lib/types';
+import MapRadar from '@/components/ui/MapRadar';
 import toast from 'react-hot-toast';
 
 interface CollectionFormData {
@@ -53,6 +54,7 @@ export default function CollectionsPage() {
   const [expandedLineups, setExpandedLineups] = useState<Lineup[]>([]);
   const [loadingLineups, setLoadingLineups] = useState(false);
   const [hidingLineupId, setHidingLineupId] = useState<string | null>(null);
+  const [selectedLineupId, setSelectedLineupId] = useState<string | null>(null);
   const { user } = useAuthStore();
 
   useEffect(() => {
@@ -181,9 +183,11 @@ export default function CollectionsPage() {
     if (expandedId === collectionId) {
       setExpandedId(null);
       setExpandedLineups([]);
+      setSelectedLineupId(null);
       return;
     }
     setExpandedId(collectionId);
+    setSelectedLineupId(null);
     setLoadingLineups(true);
     try {
       const data = await collectionsApi.getById(collectionId);
@@ -458,51 +462,67 @@ export default function CollectionsPage() {
                               ) : expandedLineups.length === 0 ? (
                                 <p className="text-sm text-[#6b6b8a] text-center py-4">No lineups in this collection</p>
                               ) : (
-                                <div className="space-y-1 max-h-96 overflow-y-auto">
-                                  {expandedLineups.map((lineup) => {
-                                    const gt = GRENADE_TYPES[lineup.grenadeType];
-                                    return (
-                                      <div
-                                        key={lineup.id}
-                                        className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-[#1a1a2e] transition-colors group"
-                                      >
-                                        <span
-                                          className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase shrink-0"
-                                          style={{
-                                            backgroundColor: `${gt.color}15`,
-                                            color: gt.color,
-                                          }}
+                                <div className="flex gap-4">
+                                  {/* Map Radar */}
+                                  <div className="w-80 shrink-0">
+                                    <MapRadar
+                                      mapName={collection.mapName}
+                                      lineups={expandedLineups}
+                                      selectedLineupId={selectedLineupId}
+                                      onLineupClick={(l) => setSelectedLineupId(l.id === selectedLineupId ? null : l.id)}
+                                    />
+                                  </div>
+                                  {/* Lineup List */}
+                                  <div className="flex-1 space-y-1 max-h-80 overflow-y-auto">
+                                    {expandedLineups.map((lineup) => {
+                                      const gt = GRENADE_TYPES[lineup.grenadeType];
+                                      const isSelected = lineup.id === selectedLineupId;
+                                      return (
+                                        <div
+                                          key={lineup.id}
+                                          className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors group cursor-pointer ${
+                                            isSelected ? 'bg-[#1a1a2e] ring-1 ring-[#f0a500]/30' : 'hover:bg-[#1a1a2e]'
+                                          }`}
+                                          onClick={() => setSelectedLineupId(isSelected ? null : lineup.id)}
                                         >
-                                          {gt.label}
-                                        </span>
-                                        <span className="text-sm text-[#e8e8e8] truncate flex-1">
-                                          {lineup.name}
-                                        </span>
-                                        {lineup.playerName && (
-                                          <span className="text-xs text-[#6b6b8a] shrink-0">
-                                            {lineup.playerName}
-                                          </span>
-                                        )}
-                                        <span className="text-xs text-[#6b6b8a] shrink-0">
-                                          {lineup.throwType}
-                                        </span>
-                                        {user?.role === 'admin' && (
-                                          <button
-                                            onClick={() => handleHideLineup(lineup)}
-                                            disabled={hidingLineupId === lineup.id}
-                                            className="p-1.5 rounded-lg text-[#6b6b8a] hover:text-[#ff4444] hover:bg-[#ff4444]/10 transition-all opacity-0 group-hover:opacity-100 disabled:opacity-50 shrink-0"
-                                            title="Hide from all pro collections"
+                                          <span
+                                            className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase shrink-0"
+                                            style={{
+                                              backgroundColor: `${gt.color}15`,
+                                              color: gt.color,
+                                            }}
                                           >
-                                            {hidingLineupId === lineup.id ? (
-                                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                            ) : (
-                                              <EyeOff className="h-3.5 w-3.5" />
-                                            )}
-                                          </button>
-                                        )}
-                                      </div>
-                                    );
-                                  })}
+                                            {gt.label}
+                                          </span>
+                                          <span className="text-sm text-[#e8e8e8] truncate flex-1">
+                                            {lineup.name}
+                                          </span>
+                                          {lineup.playerName && (
+                                            <span className="text-xs text-[#6b6b8a] shrink-0">
+                                              {lineup.playerName}
+                                            </span>
+                                          )}
+                                          <span className="text-xs text-[#6b6b8a] shrink-0">
+                                            {lineup.throwType}
+                                          </span>
+                                          {user?.role === 'admin' && (
+                                            <button
+                                              onClick={(e) => { e.stopPropagation(); handleHideLineup(lineup); }}
+                                              disabled={hidingLineupId === lineup.id}
+                                              className="p-1.5 rounded-lg text-[#6b6b8a] hover:text-[#ff4444] hover:bg-[#ff4444]/10 transition-all opacity-0 group-hover:opacity-100 disabled:opacity-50 shrink-0"
+                                              title="Hide from all pro collections"
+                                            >
+                                              {hidingLineupId === lineup.id ? (
+                                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                              ) : (
+                                                <EyeOff className="h-3.5 w-3.5" />
+                                              )}
+                                            </button>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
                                 </div>
                               )}
                             </div>

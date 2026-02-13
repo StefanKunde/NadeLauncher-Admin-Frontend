@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   EyeOff,
@@ -13,6 +13,7 @@ import {
 import { hiddenLineupsApi } from '@/lib/api';
 import { MAPS, GRENADE_TYPES } from '@/lib/constants';
 import type { HiddenLineup } from '@/lib/types';
+import MapRadar from '@/components/ui/MapRadar';
 import toast from 'react-hot-toast';
 
 export default function HiddenLineupsPage() {
@@ -21,6 +22,7 @@ export default function HiddenLineupsPage() {
   const [filterMap, setFilterMap] = useState<string>('all');
   const [searchText, setSearchText] = useState('');
   const [unhidingId, setUnhidingId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   useEffect(() => {
     loadItems();
@@ -46,6 +48,7 @@ export default function HiddenLineupsPage() {
     try {
       await hiddenLineupsApi.unhide(item.id);
       setItems((prev) => prev.filter((i) => i.id !== item.id));
+      if (selectedId === item.id) setSelectedId(null);
       toast.success('Lineup unhidden');
     } catch {
       toast.error('Failed to unhide lineup');
@@ -66,6 +69,35 @@ export default function HiddenLineupsPage() {
     }
     return true;
   });
+
+  // Determine which map to show on the radar
+  const radarMapName = useMemo(() => {
+    if (filterMap !== 'all') return filterMap;
+    // If all maps, pick the map with most hidden lineups
+    const counts: Record<string, number> = {};
+    for (const item of filtered) {
+      counts[item.mapName] = (counts[item.mapName] || 0) + 1;
+    }
+    let best = '';
+    let max = 0;
+    for (const [map, count] of Object.entries(counts)) {
+      if (count > max) { best = map; max = count; }
+    }
+    return best;
+  }, [filterMap, filtered]);
+
+  const radarLineups = useMemo(() => {
+    if (!radarMapName) return [];
+    return filtered
+      .filter((item) => item.mapName === radarMapName)
+      .map((item) => ({
+        id: item.id,
+        name: item.originalName || 'Hidden',
+        grenadeType: item.grenadeType,
+        throwPosition: item.throwPosition,
+        landingPosition: item.landingPosition,
+      }));
+  }, [filtered, radarMapName]);
 
   const mapDisplayName = (name: string) =>
     MAPS.find((m) => m.name === name)?.displayName || name;
@@ -103,7 +135,7 @@ export default function HiddenLineupsPage() {
         <div className="relative">
           <select
             value={filterMap}
-            onChange={(e) => setFilterMap(e.target.value)}
+            onChange={(e) => { setFilterMap(e.target.value); setSelectedId(null); }}
             className="appearance-none bg-[#12121a] border border-[#2a2a3e] rounded-xl text-sm text-[#e8e8e8] cursor-pointer hover:border-[#3a3a5e] transition-colors focus:outline-none focus:border-[#f0a500]/40 px-4 py-2 pr-10"
           >
             <option value="all">All Maps</option>
@@ -140,7 +172,7 @@ export default function HiddenLineupsPage() {
         </div>
       </div>
 
-      {/* Table */}
+      {/* Content */}
       {filtered.length === 0 ? (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -156,80 +188,108 @@ export default function HiddenLineupsPage() {
           </p>
         </motion.div>
       ) : (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="glass rounded-xl border border-[#2a2a3e] overflow-hidden"
-        >
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-[#2a2a3e] text-left">
-                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[#6b6b8a]">Name</th>
-                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[#6b6b8a]">Type</th>
-                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[#6b6b8a]">Map</th>
-                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[#6b6b8a]">Reason</th>
-                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[#6b6b8a]">Hidden At</th>
-                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[#6b6b8a] text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              <AnimatePresence>
-                {filtered.map((item) => {
-                  const gt = GRENADE_TYPES[item.grenadeType as keyof typeof GRENADE_TYPES];
-                  return (
-                    <motion.tr
-                      key={item.id}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0, height: 0 }}
-                      className="border-b border-[#2a2a3e]/50 hover:bg-[#1a1a2e]/50 transition-colors"
-                    >
-                      <td className="px-4 py-3 text-sm text-[#e8e8e8]">
-                        {item.originalName || 'Unknown'}
-                      </td>
-                      <td className="px-4 py-3">
-                        {gt && (
-                          <span
-                            className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase"
-                            style={{
-                              backgroundColor: `${gt.color}15`,
-                              color: gt.color,
-                            }}
-                          >
-                            {gt.label}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-[#6b6b8a]">
-                        {mapDisplayName(item.mapName)}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-[#6b6b8a] max-w-48 truncate">
-                        {item.reason || '-'}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-[#6b6b8a]">
-                        {new Date(item.createdAt).toLocaleDateString()}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <button
-                          onClick={() => handleUnhide(item)}
-                          disabled={unhidingId === item.id}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[#1a1a2e] text-[#6b6b8a] hover:text-[#22c55e] hover:border-[#22c55e]/30 border border-[#2a2a3e] transition-all disabled:opacity-50"
-                        >
-                          {unhidingId === item.id ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <Eye className="h-3.5 w-3.5" />
+        <div className="flex gap-6">
+          {/* Map Radar */}
+          {radarMapName && radarLineups.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="w-80 shrink-0"
+            >
+              <div className="sticky top-8">
+                <p className="text-xs text-[#6b6b8a] uppercase tracking-wider font-semibold mb-2">
+                  {mapDisplayName(radarMapName)}
+                </p>
+                <MapRadar
+                  mapName={radarMapName}
+                  lineups={radarLineups}
+                  selectedLineupId={selectedId}
+                  onLineupClick={(l) => setSelectedId(l.id === selectedId ? null : l.id)}
+                />
+              </div>
+            </motion.div>
+          )}
+
+          {/* Table */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex-1 glass rounded-xl border border-[#2a2a3e] overflow-hidden"
+          >
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-[#2a2a3e] text-left">
+                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[#6b6b8a]">Name</th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[#6b6b8a]">Type</th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[#6b6b8a]">Map</th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[#6b6b8a]">Reason</th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[#6b6b8a]">Hidden At</th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[#6b6b8a] text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                <AnimatePresence>
+                  {filtered.map((item) => {
+                    const gt = GRENADE_TYPES[item.grenadeType as keyof typeof GRENADE_TYPES];
+                    const isSelected = item.id === selectedId;
+                    return (
+                      <motion.tr
+                        key={item.id}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className={`border-b border-[#2a2a3e]/50 transition-colors cursor-pointer ${
+                          isSelected ? 'bg-[#1a1a2e]' : 'hover:bg-[#1a1a2e]/50'
+                        }`}
+                        onClick={() => setSelectedId(isSelected ? null : item.id)}
+                      >
+                        <td className="px-4 py-3 text-sm text-[#e8e8e8]">
+                          {item.originalName || 'Unknown'}
+                        </td>
+                        <td className="px-4 py-3">
+                          {gt && (
+                            <span
+                              className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase"
+                              style={{
+                                backgroundColor: `${gt.color}15`,
+                                color: gt.color,
+                              }}
+                            >
+                              {gt.label}
+                            </span>
                           )}
-                          Unhide
-                        </button>
-                      </td>
-                    </motion.tr>
-                  );
-                })}
-              </AnimatePresence>
-            </tbody>
-          </table>
-        </motion.div>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-[#6b6b8a]">
+                          {mapDisplayName(item.mapName)}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-[#6b6b8a] max-w-48 truncate">
+                          {item.reason || '-'}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-[#6b6b8a]">
+                          {new Date(item.createdAt).toLocaleDateString()}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleUnhide(item); }}
+                            disabled={unhidingId === item.id}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[#1a1a2e] text-[#6b6b8a] hover:text-[#22c55e] hover:border-[#22c55e]/30 border border-[#2a2a3e] transition-all disabled:opacity-50"
+                          >
+                            {unhidingId === item.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Eye className="h-3.5 w-3.5" />
+                            )}
+                            Unhide
+                          </button>
+                        </td>
+                      </motion.tr>
+                    );
+                  })}
+                </AnimatePresence>
+              </tbody>
+            </table>
+          </motion.div>
+        </div>
       )}
     </div>
   );

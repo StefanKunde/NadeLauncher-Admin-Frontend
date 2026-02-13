@@ -78,6 +78,18 @@ export interface CollectionWithLineups {
   lineups: Lineup[];
 }
 
+export interface HiddenLineup {
+  id: string;
+  mapName: string;
+  grenadeType: 'smoke' | 'flash' | 'molotov' | 'he';
+  throwPosition: { x: number; y: number; z: number };
+  landingPosition: { x: number; y: number; z: number };
+  reason?: string;
+  originalLineupId?: string;
+  originalName?: string;
+  createdAt: string;
+}
+
 // Admin-specific types
 export interface AdminUser extends User {
   usageSeconds?: number;

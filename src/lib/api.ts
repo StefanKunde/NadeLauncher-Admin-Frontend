@@ -8,6 +8,7 @@ import type {
   LineupCollection,
   CollectionWithLineups,
   Lineup,
+  HiddenLineup,
   UserRole,
   Session,
 } from './types';
@@ -136,6 +137,16 @@ export const adminSessionsApi = {
     api.get('/admin/sessions/running').then((r) => unwrap<Session[]>(r.data)),
   end: (id: string) =>
     api.post(`/admin/sessions/${id}/end`).then((r) => r.data),
+};
+
+// Hidden Lineups (admin blacklist)
+export const hiddenLineupsApi = {
+  getAll: (mapName?: string) =>
+    api.get('/admin/hidden-lineups', { params: { mapName } }).then((r) => unwrap<HiddenLineup[]>(r.data)),
+  hide: (lineupId: string, reason?: string) =>
+    api.post('/admin/hidden-lineups', { lineupId, reason }).then((r) => unwrap<HiddenLineup>(r.data)),
+  unhide: (id: string) =>
+    api.delete(`/admin/hidden-lineups/${id}`),
 };
 
 export default api;

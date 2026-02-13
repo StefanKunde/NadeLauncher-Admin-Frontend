@@ -8,16 +8,18 @@ import {
   Search,
   X,
   ChevronDown,
+  ChevronRight,
   Loader2,
   Edit2,
   Trash2,
   Target,
   Download,
+  EyeOff,
 } from 'lucide-react';
-import { collectionsApi } from '@/lib/api';
+import { collectionsApi, hiddenLineupsApi } from '@/lib/api';
 import { useAuthStore } from '@/store/auth-store';
-import { MAPS, MAP_COLORS } from '@/lib/constants';
-import type { LineupCollection } from '@/lib/types';
+import { MAPS, MAP_COLORS, GRENADE_TYPES } from '@/lib/constants';
+import type { LineupCollection, Lineup } from '@/lib/types';
 import toast from 'react-hot-toast';
 
 interface CollectionFormData {
@@ -47,6 +49,10 @@ export default function CollectionsPage() {
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [expandedLineups, setExpandedLineups] = useState<Lineup[]>([]);
+  const [loadingLineups, setLoadingLineups] = useState(false);
+  const [hidingLineupId, setHidingLineupId] = useState<string | null>(null);
   const { user } = useAuthStore();
 
   useEffect(() => {
@@ -168,6 +174,46 @@ export default function CollectionsPage() {
       toast.error('Failed to export collection');
     } finally {
       setDownloadingId(null);
+    }
+  };
+
+  const toggleExpand = async (collectionId: string) => {
+    if (expandedId === collectionId) {
+      setExpandedId(null);
+      setExpandedLineups([]);
+      return;
+    }
+    setExpandedId(collectionId);
+    setLoadingLineups(true);
+    try {
+      const data = await collectionsApi.getById(collectionId);
+      setExpandedLineups(data.lineups);
+    } catch {
+      toast.error('Failed to load lineups');
+      setExpandedId(null);
+    } finally {
+      setLoadingLineups(false);
+    }
+  };
+
+  const handleHideLineup = async (lineup: Lineup) => {
+    const reason = prompt('Reason for hiding (optional):');
+    if (reason === null) return; // cancelled
+
+    setHidingLineupId(lineup.id);
+    try {
+      await hiddenLineupsApi.hide(lineup.id, reason || undefined);
+      setExpandedLineups((prev) => prev.filter((l) => l.id !== lineup.id));
+      setCollections((prev) =>
+        prev.map((c) =>
+          c.id === expandedId ? { ...c, lineupCount: c.lineupCount - 1 } : c,
+        ),
+      );
+      toast.success(`Hidden: ${lineup.name}`);
+    } catch {
+      toast.error('Failed to hide lineup');
+    } finally {
+      setHidingLineupId(null);
     }
   };
 
@@ -314,73 +360,155 @@ export default function CollectionsPage() {
                   {mapCollections.map((collection) => (
                     <motion.div
                       key={collection.id}
-                      className={`glass rounded-xl p-4 border transition-all duration-200 ${
+                      className={`glass rounded-xl border transition-all duration-200 ${
                         collection.isDefault
                           ? 'border-[#f0a500]/30 bg-[#f0a500]/5'
                           : 'border-transparent hover:border-[#2a2a3e]'
-                      }`}
+                      } ${expandedId === collection.id ? 'col-span-full' : ''}`}
                       layout
                     >
-                      <div className="flex items-start justify-between gap-3 mb-3">
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-semibold text-[#e8e8e8] truncate">
-                            {collection.name}
-                          </h3>
-                          {collection.description && (
-                            <p className="text-sm text-[#6b6b8a] mt-1 line-clamp-2">
-                              {collection.description}
-                            </p>
-                          )}
-                        </div>
-                        {collection.isDefault && (
-                          <span className="flex-shrink-0 text-[10px] font-medium px-2 py-0.5 rounded-full bg-[#f0a500]/15 text-[#f0a500]">
-                            DEFAULT
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 text-sm text-[#6b6b8a]">
-                          <Target className="h-4 w-4" />
-                          {collection.lineupCount} lineup{collection.lineupCount !== 1 ? 's' : ''}
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          {user?.role === 'admin' && (
-                            <button
-                              onClick={() => handleExportJson(collection)}
-                              disabled={downloadingId === collection.id}
-                              className="p-2 rounded-lg bg-[#1a1a2e] text-[#6b6b8a] hover:text-[#22c55e] hover:border-[#22c55e]/30 border border-[#2a2a3e] transition-all disabled:opacity-50"
-                              title="Export as JSON"
-                            >
-                              {downloadingId === collection.id ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <Download className="h-4 w-4" />
-                              )}
-                            </button>
-                          )}
+                      <div className="p-4">
+                        <div className="flex items-start justify-between gap-3 mb-3">
                           <button
-                            onClick={() => openEditModal(collection)}
-                            className="p-2 rounded-lg bg-[#1a1a2e] text-[#6b6b8a] hover:text-[#f0a500] hover:border-[#f0a500]/30 border border-[#2a2a3e] transition-all"
+                            onClick={() => toggleExpand(collection.id)}
+                            className="flex-1 min-w-0 text-left flex items-center gap-2"
                           >
-                            <Edit2 className="h-4 w-4" />
-                          </button>
-                          {user?.role === 'admin' && (
-                            <button
-                              onClick={() => handleDelete(collection.id)}
-                              disabled={deletingId === collection.id}
-                              className="p-2 rounded-lg bg-[#1a1a2e] text-[#6b6b8a] hover:text-[#ff4444] hover:border-[#ff4444]/30 border border-[#2a2a3e] transition-all disabled:opacity-50"
-                            >
-                              {deletingId === collection.id ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <Trash2 className="h-4 w-4" />
+                            <ChevronRight
+                              className={`h-4 w-4 text-[#6b6b8a] shrink-0 transition-transform ${
+                                expandedId === collection.id ? 'rotate-90' : ''
+                              }`}
+                            />
+                            <div className="min-w-0">
+                              <h3 className="font-semibold text-[#e8e8e8] truncate">
+                                {collection.name}
+                              </h3>
+                              {collection.description && (
+                                <p className="text-sm text-[#6b6b8a] mt-1 line-clamp-2">
+                                  {collection.description}
+                                </p>
                               )}
-                            </button>
+                            </div>
+                          </button>
+                          {collection.isDefault && (
+                            <span className="flex-shrink-0 text-[10px] font-medium px-2 py-0.5 rounded-full bg-[#f0a500]/15 text-[#f0a500]">
+                              DEFAULT
+                            </span>
                           )}
                         </div>
+
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 text-sm text-[#6b6b8a]">
+                            <Target className="h-4 w-4" />
+                            {collection.lineupCount} lineup{collection.lineupCount !== 1 ? 's' : ''}
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            {user?.role === 'admin' && (
+                              <button
+                                onClick={() => handleExportJson(collection)}
+                                disabled={downloadingId === collection.id}
+                                className="p-2 rounded-lg bg-[#1a1a2e] text-[#6b6b8a] hover:text-[#22c55e] hover:border-[#22c55e]/30 border border-[#2a2a3e] transition-all disabled:opacity-50"
+                                title="Export as JSON"
+                              >
+                                {downloadingId === collection.id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Download className="h-4 w-4" />
+                                )}
+                              </button>
+                            )}
+                            <button
+                              onClick={() => openEditModal(collection)}
+                              className="p-2 rounded-lg bg-[#1a1a2e] text-[#6b6b8a] hover:text-[#f0a500] hover:border-[#f0a500]/30 border border-[#2a2a3e] transition-all"
+                            >
+                              <Edit2 className="h-4 w-4" />
+                            </button>
+                            {user?.role === 'admin' && (
+                              <button
+                                onClick={() => handleDelete(collection.id)}
+                                disabled={deletingId === collection.id}
+                                className="p-2 rounded-lg bg-[#1a1a2e] text-[#6b6b8a] hover:text-[#ff4444] hover:border-[#ff4444]/30 border border-[#2a2a3e] transition-all disabled:opacity-50"
+                              >
+                                {deletingId === collection.id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Trash2 className="h-4 w-4" />
+                                )}
+                              </button>
+                            )}
+                          </div>
+                        </div>
                       </div>
+
+                      {/* Expanded Lineup List */}
+                      <AnimatePresence>
+                        {expandedId === collection.id && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="overflow-hidden border-t border-[#2a2a3e]"
+                          >
+                            <div className="p-4">
+                              {loadingLineups ? (
+                                <div className="flex items-center justify-center py-6">
+                                  <Loader2 className="h-5 w-5 animate-spin text-[#f0a500]" />
+                                  <span className="ml-2 text-sm text-[#6b6b8a]">Loading lineups...</span>
+                                </div>
+                              ) : expandedLineups.length === 0 ? (
+                                <p className="text-sm text-[#6b6b8a] text-center py-4">No lineups in this collection</p>
+                              ) : (
+                                <div className="space-y-1 max-h-96 overflow-y-auto">
+                                  {expandedLineups.map((lineup) => {
+                                    const gt = GRENADE_TYPES[lineup.grenadeType];
+                                    return (
+                                      <div
+                                        key={lineup.id}
+                                        className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-[#1a1a2e] transition-colors group"
+                                      >
+                                        <span
+                                          className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase shrink-0"
+                                          style={{
+                                            backgroundColor: `${gt.color}15`,
+                                            color: gt.color,
+                                          }}
+                                        >
+                                          {gt.label}
+                                        </span>
+                                        <span className="text-sm text-[#e8e8e8] truncate flex-1">
+                                          {lineup.name}
+                                        </span>
+                                        {lineup.playerName && (
+                                          <span className="text-xs text-[#6b6b8a] shrink-0">
+                                            {lineup.playerName}
+                                          </span>
+                                        )}
+                                        <span className="text-xs text-[#6b6b8a] shrink-0">
+                                          {lineup.throwType}
+                                        </span>
+                                        {user?.role === 'admin' && (
+                                          <button
+                                            onClick={() => handleHideLineup(lineup)}
+                                            disabled={hidingLineupId === lineup.id}
+                                            className="p-1.5 rounded-lg text-[#6b6b8a] hover:text-[#ff4444] hover:bg-[#ff4444]/10 transition-all opacity-0 group-hover:opacity-100 disabled:opacity-50 shrink-0"
+                                            title="Hide from all pro collections"
+                                          >
+                                            {hidingLineupId === lineup.id ? (
+                                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                            ) : (
+                                              <EyeOff className="h-3.5 w-3.5" />
+                                            )}
+                                          </button>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </motion.div>
                   ))}
                 </div>

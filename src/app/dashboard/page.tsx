@@ -17,8 +17,9 @@ import {
   MapPin,
   Clock,
   Square,
+  RefreshCw,
 } from 'lucide-react';
-import { adminStatsApi, adminLineupsApi, adminSessionsApi } from '@/lib/api';
+import { adminStatsApi, adminLineupsApi, adminSessionsApi, adminCacheApi } from '@/lib/api';
 import type { DashboardStats, Session } from '@/lib/types';
 import { useAuthStore } from '@/store/auth-store';
 import toast from 'react-hot-toast';
@@ -46,6 +47,7 @@ export default function DashboardPage() {
   const [confirmText, setConfirmText] = useState('');
   const [runningSessions, setRunningSessions] = useState<Session[]>([]);
   const [endingSession, setEndingSession] = useState<string | null>(null);
+  const [clearingCache, setClearingCache] = useState(false);
 
   const loadStats = async () => {
     try {
@@ -88,6 +90,18 @@ export default function DashboardPage() {
   useEffect(() => {
     loadStats();
   }, []);
+
+  const handleClearCache = async () => {
+    setClearingCache(true);
+    try {
+      await adminCacheApi.clear();
+      toast.success('Cache cleared successfully');
+    } catch {
+      toast.error('Failed to clear cache');
+    } finally {
+      setClearingCache(false);
+    }
+  };
 
   const handleDelete = async () => {
     if (!deleteModal) return;
@@ -377,7 +391,29 @@ export default function DashboardPage() {
           <h2 className="text-lg font-semibold text-[#e8e8e8] mb-4">
             Data Management
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-[#1a1a2e] rounded-lg p-4 border border-[#2a2a3e]">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-[#e8e8e8] font-medium mb-1">Clear Redis Cache</h3>
+                  <p className="text-[#6b6b8a] text-sm">
+                    Invalidate all cached collections
+                  </p>
+                </div>
+                <button
+                  onClick={handleClearCache}
+                  disabled={clearingCache}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-500/10 text-blue-500 rounded-lg border border-blue-500/30 hover:bg-blue-500/20 transition-colors disabled:opacity-50"
+                >
+                  {clearingCache ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-4 h-4" />
+                  )}
+                  Clear Cache
+                </button>
+              </div>
+            </div>
             <div className="bg-[#1a1a2e] rounded-lg p-4 border border-[#2a2a3e]">
               <div className="flex items-center justify-between">
                 <div>

@@ -139,6 +139,11 @@ export const adminSessionsApi = {
     api.post(`/admin/sessions/${id}/end`).then((r) => r.data),
 };
 
+// Cache Management
+export const adminCacheApi = {
+  clear: () => api.post('/admin/cache/clear').then((r) => unwrap<{ cleared: boolean }>(r.data)),
+};
+
 // Hidden Lineups (admin blacklist)
 export const hiddenLineupsApi = {
   getAll: (mapName?: string) =>

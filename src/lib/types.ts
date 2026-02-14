@@ -116,7 +116,7 @@ export interface UsageStatsData {
 }
 
 // Session types
-export type SessionStatus = 'queued' | 'pending' | 'provisioning' | 'ready' | 'active' | 'ending' | 'ended' | 'failed';
+export type SessionStatus = 'queued' | 'pending' | 'provisioning' | 'ready' | 'active' | 'recyclable' | 'ending' | 'ended' | 'failed';
 
 export interface Session {
   id: string;
@@ -140,6 +140,7 @@ export interface Session {
   isEditorSession?: boolean;
   editingCollectionId?: string;
   editingCollectionName?: string;
+  recyclableUntil?: string;
   user?: {
     id: string;
     username: string;

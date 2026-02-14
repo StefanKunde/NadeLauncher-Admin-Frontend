@@ -77,6 +77,8 @@ export const adminUsersApi = {
   updatePremium: (id: string, isPremium: boolean) =>
     api.put(`/admin/users/${id}/premium`, { isPremium }).then((r) => unwrap<AdminUser>(r.data)),
   delete: (id: string) => api.delete(`/admin/users/${id}`),
+  resetUsage: (id: string) =>
+    api.post(`/admin/users/${id}/usage/reset`).then((r) => unwrap<{ deletedCount: number }>(r.data)),
 };
 
 // Admin Stats
@@ -135,6 +137,8 @@ export const adminSessionsApi = {
     api.get('/admin/sessions/active').then((r) => unwrap<Session | null>(r.data)),
   getRunning: () =>
     api.get('/admin/sessions/running').then((r) => unwrap<Session[]>(r.data)),
+  getServers: () =>
+    api.get('/admin/sessions/servers').then((r) => unwrap<Session[]>(r.data)),
   end: (id: string) =>
     api.post(`/admin/sessions/${id}/end`).then((r) => r.data),
 };

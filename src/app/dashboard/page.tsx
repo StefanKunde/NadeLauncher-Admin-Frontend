@@ -18,6 +18,7 @@ import {
   Clock,
   Square,
   RefreshCw,
+  Timer,
 } from 'lucide-react';
 import { adminStatsApi, adminLineupsApi, adminSessionsApi, adminCacheApi } from '@/lib/api';
 import type { DashboardStats, Session } from '@/lib/types';
@@ -53,7 +54,7 @@ export default function DashboardPage() {
     try {
       const [data, sessions] = await Promise.all([
         adminStatsApi.getDashboard(),
-        adminSessionsApi.getRunning().catch(() => []),
+        adminSessionsApi.getServers().catch(() => []),
       ]);
       setStats(data);
       setRunningSessions(sessions);
@@ -85,6 +86,19 @@ export default function DashboardPage() {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const formatTermination = (dateStr: string | undefined) => {
+    if (!dateStr) return 'Unknown';
+    const target = new Date(dateStr).getTime();
+    const now = Date.now();
+    const diff = target - now;
+    if (diff <= 0) return 'Imminent';
+    const mins = Math.floor(diff / 60000);
+    if (mins < 60) return `${mins}m`;
+    const hours = Math.floor(mins / 60);
+    const remainMins = mins % 60;
+    return `${hours}h ${remainMins}m`;
   };
 
   useEffect(() => {
@@ -292,9 +306,14 @@ export default function DashboardPage() {
           <h2 className="text-lg font-semibold text-[#e8e8e8]">
             Running Servers
           </h2>
-          <span className="text-sm text-[#6b6b8a]">
-            {runningSessions.length} active
-          </span>
+          <div className="flex items-center gap-3 text-sm text-[#6b6b8a]">
+            <span>{runningSessions.filter((s) => s.status !== 'recyclable').length} active</span>
+            {runningSessions.filter((s) => s.status === 'recyclable').length > 0 && (
+              <span className="text-[#f59e0b]">
+                {runningSessions.filter((s) => s.status === 'recyclable').length} idle
+              </span>
+            )}
+          </div>
         </div>
 
         {runningSessions.length === 0 ? (
@@ -304,78 +323,104 @@ export default function DashboardPage() {
           </div>
         ) : (
           <div className="space-y-3">
-            {runningSessions.map((session) => (
-              <div
-                key={session.id}
-                className="bg-[#1a1a2e] rounded-lg p-4 border border-[#2a2a3e] flex items-center gap-4"
-              >
-                {/* Status indicator */}
-                <div className="relative">
-                  <div className={`w-3 h-3 rounded-full ${
-                    session.status === 'active' || session.status === 'ready'
-                      ? 'bg-[#22c55e]'
-                      : session.status === 'queued'
-                        ? 'bg-[#6366f1]'
-                        : 'bg-[#f0a500]'
-                  }`} />
-                  {(session.status === 'active' || session.status === 'ready') && (
-                    <div className="absolute inset-0 rounded-full bg-[#22c55e] animate-ping opacity-75" />
-                  )}
-                </div>
+            {runningSessions.map((session) => {
+              const isRecyclable = session.status === 'recyclable';
+              const terminationTime = isRecyclable ? session.recyclableUntil : session.expiresAt;
 
-                {/* Session info */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-[#e8e8e8] font-medium truncate">
-                      {session.user?.username ?? 'Unknown User'}
-                    </span>
-                    {session.isEditorSession && (
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#8b5cf6]/15 text-[#8b5cf6] font-medium">
-                        EDITOR
-                      </span>
-                    )}
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
-                      session.status === 'active' || session.status === 'ready'
-                        ? 'bg-[#22c55e]/15 text-[#22c55e]'
-                        : session.status === 'queued'
-                          ? 'bg-[#6366f1]/15 text-[#6366f1]'
-                          : 'bg-[#f0a500]/15 text-[#f0a500]'
-                    }`}>
-                      {session.status.toUpperCase()}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-4 text-sm text-[#6b6b8a]">
-                    <span className="flex items-center gap-1">
-                      <MapPin className="w-3 h-3" />
-                      {session.mapName}
-                    </span>
-                    {session.serverIp && (
-                      <span className="font-mono text-xs">
-                        {session.serverIp}:{session.serverPort}
-                      </span>
-                    )}
-                    <span className="flex items-center gap-1">
-                      <Clock className="w-3 h-3" />
-                      {formatDuration(session.startedAt)}
-                    </span>
-                  </div>
-                </div>
-
-                {/* End button */}
-                <button
-                  onClick={() => handleEndSession(session.id)}
-                  disabled={endingSession === session.id}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-red-500/10 text-red-500 border border-red-500/30 hover:bg-red-500/20 transition-colors disabled:opacity-50"
+              return (
+                <div
+                  key={session.id}
+                  className={`bg-[#1a1a2e] rounded-lg p-4 border flex items-center gap-4 ${
+                    isRecyclable ? 'border-[#f59e0b]/20' : 'border-[#2a2a3e]'
+                  }`}
                 >
-                  {endingSession === session.id ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <Square className="w-3.5 h-3.5" />
-                  )}
-                  End
-                </button>
-              </div>
-            ))}
+                  {/* Status indicator */}
+                  <div className="relative">
+                    <div className={`w-3 h-3 rounded-full ${
+                      isRecyclable
+                        ? 'bg-[#f59e0b]'
+                        : session.status === 'active' || session.status === 'ready'
+                          ? 'bg-[#22c55e]'
+                          : session.status === 'queued'
+                            ? 'bg-[#6366f1]'
+                            : 'bg-[#f0a500]'
+                    }`} />
+                    {!isRecyclable && (session.status === 'active' || session.status === 'ready') && (
+                      <div className="absolute inset-0 rounded-full bg-[#22c55e] animate-ping opacity-75" />
+                    )}
+                  </div>
+
+                  {/* Session info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-[#e8e8e8] font-medium truncate">
+                        {isRecyclable ? 'Idle Server' : (session.user?.username ?? 'Unknown User')}
+                      </span>
+                      {session.isEditorSession && !isRecyclable && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#8b5cf6]/15 text-[#8b5cf6] font-medium">
+                          EDITOR
+                        </span>
+                      )}
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+                        isRecyclable
+                          ? 'bg-[#f59e0b]/15 text-[#f59e0b]'
+                          : session.status === 'active' || session.status === 'ready'
+                            ? 'bg-[#22c55e]/15 text-[#22c55e]'
+                            : session.status === 'queued'
+                              ? 'bg-[#6366f1]/15 text-[#6366f1]'
+                              : 'bg-[#f0a500]/15 text-[#f0a500]'
+                      }`}>
+                        {isRecyclable ? 'IDLE' : session.status.toUpperCase()}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-4 text-sm text-[#6b6b8a]">
+                      <span className="flex items-center gap-1">
+                        <MapPin className="w-3 h-3" />
+                        {session.mapName}
+                      </span>
+                      {session.serverIp && (
+                        <span className="font-mono text-xs">
+                          {session.serverIp}:{session.serverPort}
+                        </span>
+                      )}
+                      {isRecyclable ? (
+                        <span className="flex items-center gap-1 text-[#f59e0b]">
+                          <Timer className="w-3 h-3" />
+                          Terminates in {formatTermination(terminationTime)}
+                        </span>
+                      ) : (
+                        <>
+                          <span className="flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {formatDuration(session.startedAt)}
+                          </span>
+                          {session.expiresAt && (
+                            <span className="flex items-center gap-1">
+                              <Timer className="w-3 h-3" />
+                              Expires in {formatTermination(session.expiresAt)}
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* End button */}
+                  <button
+                    onClick={() => handleEndSession(session.id)}
+                    disabled={endingSession === session.id}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-red-500/10 text-red-500 border border-red-500/30 hover:bg-red-500/20 transition-colors disabled:opacity-50"
+                  >
+                    {endingSession === session.id ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Square className="w-3.5 h-3.5" />
+                    )}
+                    End
+                  </button>
+                </div>
+              );
+            })}
           </div>
         )}
       </motion.div>

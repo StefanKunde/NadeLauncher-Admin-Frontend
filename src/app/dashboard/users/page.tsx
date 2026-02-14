@@ -14,6 +14,7 @@ import {
   ExternalLink,
   Trash2,
   AlertTriangle,
+  RotateCcw,
 } from 'lucide-react';
 import { adminUsersApi } from '@/lib/api';
 import { useAuthStore } from '@/store/auth-store';
@@ -29,6 +30,7 @@ export default function UsersPage() {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AdminUser | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [resettingUsage, setResettingUsage] = useState<string | null>(null);
   const { user: currentUser } = useAuthStore();
 
   useEffect(() => {
@@ -101,6 +103,18 @@ export default function UsersPage() {
       toast.error('Failed to delete user');
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const handleResetUsage = async (userId: string, username: string) => {
+    setResettingUsage(userId);
+    try {
+      await adminUsersApi.resetUsage(userId);
+      toast.success(`Reset weekly usage for "${username}"`);
+    } catch (error) {
+      toast.error('Failed to reset usage');
+    } finally {
+      setResettingUsage(null);
     }
   };
 
@@ -311,6 +325,25 @@ export default function UsersPage() {
                           'Remove Premium'
                         ) : (
                           'Add Premium'
+                        )}
+                      </button>
+                    )}
+
+                    {/* Reset Usage button (admin only) */}
+                    {currentUser?.role === 'admin' && (
+                      <button
+                        onClick={() => handleResetUsage(user.id, user.username)}
+                        disabled={resettingUsage === user.id}
+                        className="px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-500/10 text-emerald-500 border border-emerald-500/30 hover:bg-emerald-500/20 transition-all disabled:opacity-50"
+                        title="Reset weekly usage"
+                      >
+                        {resettingUsage === user.id ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <span className="flex items-center gap-1">
+                            <RotateCcw className="h-3 w-3" />
+                            Reset Usage
+                          </span>
                         )}
                       </button>
                     )}

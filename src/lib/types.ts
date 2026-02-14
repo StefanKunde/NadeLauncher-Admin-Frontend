@@ -141,9 +141,28 @@ export interface Session {
   editingCollectionId?: string;
   editingCollectionName?: string;
   recyclableUntil?: string;
+  practiceCollectionId?: string;
+  practiceCollectionName?: string;
   user?: {
     id: string;
     username: string;
     avatar?: string;
+    isPremium?: boolean;
   };
+}
+
+export interface PaginatedSessions {
+  items: Session[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export interface ExhaustedUser {
+  userId: string;
+  username: string;
+  avatar?: string;
+  usedSeconds: number;
+  limitSeconds: number;
 }

@@ -11,6 +11,8 @@ import type {
   HiddenLineup,
   UserRole,
   Session,
+  PaginatedSessions,
+  ExhaustedUser,
 } from './types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://nadelauncher-backend-a99d397c.apps.deploypilot.stefankunde.dev';
@@ -141,6 +143,10 @@ export const adminSessionsApi = {
     api.get('/admin/sessions/servers').then((r) => unwrap<Session[]>(r.data)),
   end: (id: string) =>
     api.post(`/admin/sessions/${id}/end`).then((r) => r.data),
+  getHistory: (params: { page?: number; limit?: number; status?: string; search?: string }) =>
+    api.get('/admin/sessions/history', { params }).then((r) => unwrap<PaginatedSessions>(r.data)),
+  getExhaustedUsers: () =>
+    api.get('/admin/sessions/exhausted-users').then((r) => unwrap<ExhaustedUser[]>(r.data)),
 };
 
 // Cache Management

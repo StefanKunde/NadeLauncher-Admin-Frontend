@@ -429,7 +429,7 @@ export default function EditorPage() {
 
                     {/* Steam Connect Button */}
                     <a
-                      href={`steam://connect/${session.serverIp}:${session.serverPort || 27015}/${session.serverPassword || ''}`}
+                      href={`steam://run/730//+connect%20${session.serverIp}:${session.serverPort || 27015}%20+password%20${session.serverPassword || ''}`}
                       className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#f0a500] px-4 py-3 text-sm font-bold text-[#0a0a12] transition-all hover:bg-[#d4900a] hover:shadow-lg hover:shadow-[#f0a500]/20"
                     >
                       <ExternalLink className="h-4 w-4" />

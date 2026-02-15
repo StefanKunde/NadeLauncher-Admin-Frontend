@@ -164,12 +164,12 @@ export const adminCacheApi = {
     size: number;
   }[]>(r.data)),
   getKeyValue: (key: string) =>
-    api.get(`/admin/cache/keys/${encodeURIComponent(key)}`).then((r) => unwrap<{
+    api.get('/admin/cache/key', { params: { name: key } }).then((r) => unwrap<{
       key: string;
       value: string | null;
     }>(r.data)),
   deleteKey: (key: string) =>
-    api.delete(`/admin/cache/keys/${encodeURIComponent(key)}`).then((r) => unwrap<{
+    api.delete('/admin/cache/key', { params: { name: key } }).then((r) => unwrap<{
       deleted: boolean;
       key: string;
     }>(r.data)),

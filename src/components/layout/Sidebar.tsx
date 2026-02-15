@@ -14,6 +14,7 @@ import {
   Server,
   EyeOff,
   Activity,
+  Database,
 } from 'lucide-react';
 import { useAuthStore } from '@/store/auth-store';
 
@@ -24,6 +25,7 @@ const NAV_ITEMS = [
   { href: '/dashboard/sessions', icon: Activity, label: 'Sessions' },
   { href: '/dashboard/editor', icon: Server, label: 'Editor' },
   { href: '/dashboard/hidden-lineups', icon: EyeOff, label: 'Hidden Lineups' },
+  { href: '/dashboard/redis', icon: Database, label: 'Redis' },
 ];
 
 export default function Sidebar() {

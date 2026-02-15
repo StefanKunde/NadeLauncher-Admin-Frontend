@@ -152,6 +152,35 @@ export const adminSessionsApi = {
 // Cache Management
 export const adminCacheApi = {
   clear: () => api.post('/admin/cache/clear').then((r) => unwrap<{ cleared: boolean }>(r.data)),
+  getStatus: () => api.get('/admin/cache/status').then((r) => unwrap<{
+    configured: boolean;
+    connected: boolean;
+    status: string;
+    info: Record<string, string> | null;
+  }>(r.data)),
+  getKeys: () => api.get('/admin/cache/keys').then((r) => unwrap<{
+    key: string;
+    ttl: number;
+    size: number;
+  }[]>(r.data)),
+  getKeyValue: (key: string) =>
+    api.get(`/admin/cache/keys/${encodeURIComponent(key)}`).then((r) => unwrap<{
+      key: string;
+      value: string | null;
+    }>(r.data)),
+  deleteKey: (key: string) =>
+    api.delete(`/admin/cache/keys/${encodeURIComponent(key)}`).then((r) => unwrap<{
+      deleted: boolean;
+      key: string;
+    }>(r.data)),
+  test: () => api.post('/admin/cache/test').then((r) => unwrap<{
+    success: boolean;
+    setMs: number;
+    getMs: number;
+    delMs: number;
+    error?: string;
+  }>(r.data)),
+  flush: () => api.post('/admin/cache/flush').then((r) => unwrap<{ cleared: boolean }>(r.data)),
 };
 
 // Hidden Lineups (admin blacklist)

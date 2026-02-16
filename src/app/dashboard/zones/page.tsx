@@ -66,6 +66,7 @@ export default function ZonesPage() {
   const isDragCreating = useRef(false);
   const cursorRadarRef = useRef<{ x: number; y: number } | null>(null);
   const draggingVertexIdx = useRef<number | null>(null);
+  const mouseDownPos = useRef<{ x: number; y: number } | null>(null);
 
   // Zone form
   const [formOpen, setFormOpen] = useState(false);
@@ -138,6 +139,8 @@ export default function ZonesPage() {
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
+      mouseDownPos.current = { x: e.clientX, y: e.clientY };
+
       // Drawing mode: start drag to create zone
       if (isDrawing && drawingReadyRef.current && radarRef.current && config) {
         const rect = radarRef.current.getBoundingClientRect();
@@ -213,11 +216,67 @@ export default function ZonesPage() {
     [selectedMap],
   );
 
-  const handleMouseUp = useCallback(() => {
+  const handleMouseUp = useCallback((e: React.MouseEvent) => {
     // Vertex drag end
     if (draggingVertexIdx.current !== null) {
       draggingVertexIdx.current = null;
+      mouseDownPos.current = null;
       return;
+    }
+
+    // Click-to-add vertex on closest edge (when form is open, not drawing)
+    if (
+      formOpen &&
+      !isDrawing &&
+      drawingVertices.length >= 3 &&
+      mouseDownPos.current &&
+      radarRef.current &&
+      config
+    ) {
+      const mdp = mouseDownPos.current;
+      const dist = Math.hypot(e.clientX - mdp.x, e.clientY - mdp.y);
+      mouseDownPos.current = null;
+
+      if (dist < 4) {
+        // It was a click, not a drag
+        const rect = radarRef.current.getBoundingClientRect();
+        const rx = ((e.clientX - rect.left) / rect.width) * 100;
+        const ry = ((e.clientY - rect.top) / rect.height) * 100;
+        const clickWorld = radarToWorld(rx, ry, config);
+
+        // Find closest edge to insert on
+        let bestDist = Infinity;
+        let insertAfter = 0;
+        for (let i = 0; i < drawingVertices.length; i++) {
+          const a = worldToRadar(drawingVertices[i].x, drawingVertices[i].y, config);
+          const b = worldToRadar(
+            drawingVertices[(i + 1) % drawingVertices.length].x,
+            drawingVertices[(i + 1) % drawingVertices.length].y,
+            config,
+          );
+          // Distance from point to line segment
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          const lenSq = dx * dx + dy * dy;
+          const t = lenSq === 0 ? 0 : Math.max(0, Math.min(1, ((rx - a.x) * dx + (ry - a.y) * dy) / lenSq));
+          const px = a.x + t * dx;
+          const py = a.y + t * dy;
+          const d = Math.hypot(rx - px, ry - py);
+          if (d < bestDist) {
+            bestDist = d;
+            insertAfter = i;
+          }
+        }
+
+        setDrawingVertices((prev) => {
+          const next = [...prev];
+          next.splice(insertAfter + 1, 0, clickWorld);
+          return next;
+        });
+        return;
+      }
+    } else {
+      mouseDownPos.current = null;
     }
 
     // Finalize drag-create zone (rectangle)
@@ -270,7 +329,7 @@ export default function ZonesPage() {
     }
 
     isDragging.current = false;
-  }, [dragCenter, config, zones.length, loadZValuesForPolygon]);
+  }, [dragCenter, config, zones.length, loadZValuesForPolygon, formOpen, isDrawing, drawingVertices]);
 
   const isZoomed = zoom !== 1;
 
@@ -500,9 +559,10 @@ export default function ZonesPage() {
                     <h4 className="text-[#e8e8e8] font-semibold mb-1">Creating Zones</h4>
                     <p>
                       Click <span className="text-[#f0a500]">Draw Zone</span>, then click &amp; drag on the radar
-                      to create a rectangular zone. Release to finalize the shape. You can then drag any corner to adjust
-                      the shape, or <span className="text-white">right-click</span> a corner to delete it (minimum 3).
-                      The same draggable corners appear when editing an existing zone.
+                      to create a rectangular zone. Release to finalize the shape. You can then drag any vertex to adjust
+                      the shape, <span className="text-white">click</span> on an edge to add a new vertex,
+                      or <span className="text-white">right-click</span> a vertex to delete it (minimum 3).
+                      The same controls appear when editing an existing zone.
                     </p>
                   </div>
                   <div>
@@ -613,14 +673,18 @@ export default function ZonesPage() {
           <div
             ref={radarRef}
             className={`relative aspect-square w-full overflow-hidden rounded-xl bg-[#0a0a0f] border border-[#2a2a3e] ${
-              isDrawing ? 'cursor-crosshair' : zoom > 1 ? 'cursor-grab active:cursor-grabbing' : ''
+              isDrawing ? 'cursor-crosshair' : formOpen && drawingVertices.length >= 3 ? 'cursor-crosshair' : zoom > 1 ? 'cursor-grab active:cursor-grabbing' : ''
             }`}
             onWheel={handleWheel}
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
-            onMouseLeave={() => {
-              handleMouseUp();
+            onMouseLeave={(e) => {
+              // Reset drag state on leave without adding vertex
+              draggingVertexIdx.current = null;
+              mouseDownPos.current = null;
+              isDragCreating.current = false;
+              isDragging.current = false;
               setCursorRadar(null);
             }}
           >

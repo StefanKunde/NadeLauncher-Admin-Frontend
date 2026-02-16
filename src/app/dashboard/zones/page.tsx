@@ -59,6 +59,7 @@ export default function ZonesPage() {
   const [isDrawing, setIsDrawing] = useState(false);
   const [drawingVertices, setDrawingVertices] = useState<{ x: number; y: number }[]>([]);
   const [cursorRadar, setCursorRadar] = useState<{ x: number; y: number } | null>(null);
+  const drawingReadyRef = useRef(false);
 
   // Zone form
   const [formOpen, setFormOpen] = useState(false);
@@ -167,7 +168,7 @@ export default function ZonesPage() {
 
   const handleRadarClick = useCallback(
     (e: React.MouseEvent) => {
-      if (!isDrawing || !radarRef.current || !config) return;
+      if (!isDrawing || !drawingReadyRef.current || !radarRef.current || !config) return;
       e.stopPropagation();
 
       const rect = radarRef.current.getBoundingClientRect();
@@ -211,6 +212,7 @@ export default function ZonesPage() {
 
   const cancelDrawing = useCallback(() => {
     setIsDrawing(false);
+    drawingReadyRef.current = false;
     setDrawingVertices([]);
     setCursorRadar(null);
   }, []);
@@ -220,7 +222,12 @@ export default function ZonesPage() {
     setFormOpen(false);
     setEditingZone(null);
     setDrawingVertices([]);
+    drawingReadyRef.current = false;
     setIsDrawing(true);
+    // Delay accepting clicks so the "Draw Zone" button click doesn't register as a vertex
+    requestAnimationFrame(() => {
+      drawingReadyRef.current = true;
+    });
   }, []);
 
   // ── Z values loading ──
@@ -475,7 +482,7 @@ export default function ZonesPage() {
       {/* Main content: Radar + Zone list */}
       <div className="flex gap-5">
         {/* Radar */}
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 max-w-[640px]">
           <div
             ref={radarRef}
             className={`relative aspect-square w-full overflow-hidden rounded-xl bg-[#0a0a0f] border border-[#2a2a3e] ${

@@ -501,7 +501,8 @@ export default function ZonesPage() {
                     <p>
                       Click <span className="text-[#f0a500]">Draw Zone</span>, then click &amp; drag on the radar
                       to create a rectangular zone. Release to finalize the shape. You can then drag any corner to adjust
-                      the shape before saving. The same draggable corners appear when editing an existing zone.
+                      the shape, or <span className="text-white">right-click</span> a corner to delete it (minimum 3).
+                      The same draggable corners appear when editing an existing zone.
                     </p>
                   </div>
                   <div>
@@ -705,7 +706,7 @@ export default function ZonesPage() {
                 })()}
               </svg>
 
-              {/* Draggable vertex handles */}
+              {/* Draggable vertex handles (left-click drag, right-click delete) */}
               {formOpen && drawingVertices.length > 0 && drawingVertices.map((v, i) => {
                 const r = worldToRadar(v.x, v.y, config);
                 return (
@@ -717,6 +718,15 @@ export default function ZonesPage() {
                       e.stopPropagation();
                       e.preventDefault();
                       draggingVertexIdx.current = i;
+                    }}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (drawingVertices.length <= 3) {
+                        toast.error('Minimum 3 vertices required');
+                        return;
+                      }
+                      setDrawingVertices((prev) => prev.filter((_, idx) => idx !== i));
                     }}
                   />
                 );

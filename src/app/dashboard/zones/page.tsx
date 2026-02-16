@@ -125,6 +125,26 @@ export default function ZonesPage() {
       : config.radarImage;
   }, [config, showLower]);
 
+  // ── Convert screen coordinates to radar % (accounting for zoom/pan) ──
+
+  const clientToRadar = useCallback(
+    (clientX: number, clientY: number): { x: number; y: number } | null => {
+      if (!radarRef.current) return null;
+      const rect = radarRef.current.getBoundingClientRect();
+      // Position relative to the container top-left (px)
+      const containerX = clientX - rect.left;
+      const containerY = clientY - rect.top;
+      // Invert the CSS transform: scale(zoom) translate(pan.x/zoom, pan.y/zoom) with origin center
+      const contentX = (containerX - (1 - zoom) * rect.width / 2 - pan.x) / zoom;
+      const contentY = (containerY - (1 - zoom) * rect.height / 2 - pan.y) / zoom;
+      return {
+        x: (contentX / rect.width) * 100,
+        y: (contentY / rect.height) * 100,
+      };
+    },
+    [zoom, pan],
+  );
+
   // ── Zoom/pan handlers ──
 
   const handleWheel = useCallback((e: React.WheelEvent) => {
@@ -142,13 +162,12 @@ export default function ZonesPage() {
       mouseDownPos.current = { x: e.clientX, y: e.clientY };
 
       // Drawing mode: start drag to create zone
-      if (isDrawing && drawingReadyRef.current && radarRef.current && config) {
-        const rect = radarRef.current.getBoundingClientRect();
-        const rx = ((e.clientX - rect.left) / rect.width) * 100;
-        const ry = ((e.clientY - rect.top) / rect.height) * 100;
-        setDragCenter({ x: rx, y: ry });
-        setCursorRadar({ x: rx, y: ry });
-        cursorRadarRef.current = { x: rx, y: ry };
+      if (isDrawing && drawingReadyRef.current && config) {
+        const r = clientToRadar(e.clientX, e.clientY);
+        if (!r) return;
+        setDragCenter({ x: r.x, y: r.y });
+        setCursorRadar({ x: r.x, y: r.y });
+        cursorRadarRef.current = { x: r.x, y: r.y };
         isDragCreating.current = true;
         e.preventDefault();
         return;
@@ -158,17 +177,16 @@ export default function ZonesPage() {
       dragStart.current = { x: e.clientX, y: e.clientY };
       panStart.current = { ...pan };
     },
-    [isDrawing, zoom, pan, config],
+    [isDrawing, zoom, pan, config, clientToRadar],
   );
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent) => {
       // Vertex dragging
-      if (draggingVertexIdx.current !== null && radarRef.current && config) {
-        const rect = radarRef.current.getBoundingClientRect();
-        const rx = ((e.clientX - rect.left) / rect.width) * 100;
-        const ry = ((e.clientY - rect.top) / rect.height) * 100;
-        const world = radarToWorld(rx, ry, config);
+      if (draggingVertexIdx.current !== null && config) {
+        const r = clientToRadar(e.clientX, e.clientY);
+        if (!r) return;
+        const world = radarToWorld(r.x, r.y, config);
         setDrawingVertices((prev) => {
           const next = [...prev];
           next[draggingVertexIdx.current!] = world;
@@ -178,12 +196,11 @@ export default function ZonesPage() {
       }
 
       // Drawing drag: update cursor for rectangle preview
-      if (isDragCreating.current && radarRef.current) {
-        const rect = radarRef.current.getBoundingClientRect();
-        const rx = ((e.clientX - rect.left) / rect.width) * 100;
-        const ry = ((e.clientY - rect.top) / rect.height) * 100;
-        setCursorRadar({ x: rx, y: ry });
-        cursorRadarRef.current = { x: rx, y: ry };
+      if (isDragCreating.current) {
+        const r = clientToRadar(e.clientX, e.clientY);
+        if (!r) return;
+        setCursorRadar({ x: r.x, y: r.y });
+        cursorRadarRef.current = { x: r.x, y: r.y };
         return;
       }
 
@@ -195,7 +212,7 @@ export default function ZonesPage() {
         y: panStart.current.y + dy,
       });
     },
-    [config],
+    [config, clientToRadar],
   );
 
   // ── Z values loading (must be before handleMouseUp) ──
@@ -230,7 +247,6 @@ export default function ZonesPage() {
       !isDrawing &&
       drawingVertices.length >= 3 &&
       mouseDownPos.current &&
-      radarRef.current &&
       config
     ) {
       const mdp = mouseDownPos.current;
@@ -239,9 +255,10 @@ export default function ZonesPage() {
 
       if (dist < 4) {
         // It was a click, not a drag
-        const rect = radarRef.current.getBoundingClientRect();
-        const rx = ((e.clientX - rect.left) / rect.width) * 100;
-        const ry = ((e.clientY - rect.top) / rect.height) * 100;
+        const r = clientToRadar(e.clientX, e.clientY);
+        if (!r) return;
+        const rx = r.x;
+        const ry = r.y;
         const clickWorld = radarToWorld(rx, ry, config);
 
         // Find closest edge to insert on
@@ -329,7 +346,7 @@ export default function ZonesPage() {
     }
 
     isDragging.current = false;
-  }, [dragCenter, config, zones.length, loadZValuesForPolygon, formOpen, isDrawing, drawingVertices]);
+  }, [dragCenter, config, zones.length, loadZValuesForPolygon, formOpen, isDrawing, drawingVertices, clientToRadar]);
 
   const isZoomed = zoom !== 1;
 

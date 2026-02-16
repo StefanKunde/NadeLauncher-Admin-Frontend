@@ -381,13 +381,15 @@ export default function ZonesPage() {
     if (allZ.length === 0) return null;
 
     // Bin into ranges of 50 units
-    const bins: Map<number, number> = new Map();
+    const bins: Record<number, number> = {};
     for (const z of allZ) {
       const bin = Math.round(z / 50) * 50;
-      bins.set(bin, (bins.get(bin) || 0) + 1);
+      bins[bin] = (bins[bin] || 0) + 1;
     }
 
-    const entries = [...bins.entries()].sort((a, b) => a[0] - b[0]);
+    const entries = Object.entries(bins)
+      .map(([k, v]) => [Number(k), v] as [number, number])
+      .sort((a, b) => a[0] - b[0]);
     const maxCount = Math.max(...entries.map((e) => e[1]));
     return { entries, maxCount, min: allZ[0], max: allZ[allZ.length - 1], total: allZ.length };
   }, [zValues]);

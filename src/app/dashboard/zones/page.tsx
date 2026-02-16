@@ -1020,17 +1020,18 @@ export default function ZonesPage() {
                         {zClusters.clusters.length >= 2 && (
                           <div className="flex flex-col gap-1.5">
                             {zClusters.clusters.map((cluster, idx) => {
-                              const label = idx === 0 ? 'Lower' : idx === zClusters.clusters.length - 1 ? 'Upper' : `Level ${idx + 1}`;
+                              const isLast = idx === zClusters.clusters.length - 1;
+                              const label = idx === 0 ? 'Lower' : isLast ? 'Upper' : `Level ${idx + 1}`;
                               const margin = 15;
                               const rangeMin = Math.round(cluster.min - margin);
-                              const rangeMax = Math.round(cluster.max + margin);
-                              const isActive = formZMin === String(rangeMin) && formZMax === String(rangeMax);
+                              const rangeMax = isLast ? '' : String(Math.round(cluster.max + margin));
+                              const isActive = formZMin === String(rangeMin) && formZMax === rangeMax;
                               return (
                                 <button
                                   key={idx}
                                   onClick={() => {
                                     setFormZMin(String(rangeMin));
-                                    setFormZMax(String(rangeMax));
+                                    setFormZMax(rangeMax);
                                   }}
                                   className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors border ${
                                     isActive
@@ -1040,7 +1041,7 @@ export default function ZonesPage() {
                                 >
                                   <span className="font-medium">{label}</span>
                                   <span className="font-mono text-[10px]">
-                                    Z {rangeMin} to {rangeMax} ({cluster.values.length} nades)
+                                    Z {rangeMin}{rangeMax ? ` to ${rangeMax}` : '+'} ({cluster.values.length} nades)
                                   </span>
                                 </button>
                               );

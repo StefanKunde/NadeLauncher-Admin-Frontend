@@ -381,7 +381,7 @@ export default function ZonesPage() {
     if (allZ.length === 0) return null;
 
     // Bin into ranges of 50 units
-    const bins = new Map<number, number>();
+    const bins: Map<number, number> = new Map();
     for (const z of allZ) {
       const bin = Math.round(z / 50) * 50;
       bins.set(bin, (bins.get(bin) || 0) + 1);

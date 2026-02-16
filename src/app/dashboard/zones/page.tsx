@@ -507,25 +507,38 @@ export default function ZonesPage() {
     [config],
   );
 
-  // ── Z histogram helper ──
+  // ── Z cluster detection ──
 
-  const zHistogram = useMemo(() => {
+  const zClusters = useMemo(() => {
     if (!zValues) return null;
-    const allZ = [...zValues.throwZ, ...zValues.landZ];
+    const allZ = [...zValues.throwZ, ...zValues.landZ].sort((a, b) => a - b);
     if (allZ.length === 0) return null;
 
-    // Bin into ranges of 50 units
-    const bins: Record<number, number> = {};
-    for (const z of allZ) {
-      const bin = Math.round(z / 50) * 50;
-      bins[bin] = (bins[bin] || 0) + 1;
-    }
+    // Find clusters by detecting gaps > 40 units between sorted values
+    const clusters: { values: number[]; min: number; max: number; median: number }[] = [];
+    let current: number[] = [allZ[0]];
 
-    const entries = Object.entries(bins)
-      .map(([k, v]) => [Number(k), v] as [number, number])
-      .sort((a, b) => a[0] - b[0]);
-    const maxCount = Math.max(...entries.map((e) => e[1]));
-    return { entries, maxCount, min: allZ[0], max: allZ[allZ.length - 1], total: allZ.length };
+    for (let i = 1; i < allZ.length; i++) {
+      if (allZ[i] - allZ[i - 1] > 40) {
+        // Gap found — finalize current cluster
+        clusters.push({
+          values: current,
+          min: current[0],
+          max: current[current.length - 1],
+          median: current[Math.floor(current.length / 2)],
+        });
+        current = [];
+      }
+      current.push(allZ[i]);
+    }
+    clusters.push({
+      values: current,
+      min: current[0],
+      max: current[current.length - 1],
+      median: current[Math.floor(current.length / 2)],
+    });
+
+    return { clusters, total: allZ.length, globalMin: allZ[0], globalMax: allZ[allZ.length - 1] };
   }, [zValues]);
 
   if (!config) return null;
@@ -611,11 +624,12 @@ export default function ZonesPage() {
                     </p>
                   </div>
                   <div>
-                    <h4 className="text-[#e8e8e8] font-semibold mb-1">Z Reference Histogram</h4>
+                    <h4 className="text-[#e8e8e8] font-semibold mb-1">Z Auto-Detect</h4>
                     <p>
-                      When creating or editing a zone, the histogram shows the Z heights of existing lineups
-                      within that polygon. Use it to see natural height clusters and click a bar to auto-fill the Z range.
-                      This helps you pick the right Z min/max for vertically overlapping zones.
+                      When creating or editing a zone, the system scans existing lineups within the polygon
+                      and auto-detects height clusters. If two levels are found (e.g. Underpass vs Ladder Room),
+                      you&apos;ll see <span className="text-white">Lower</span> and <span className="text-white">Upper</span> buttons
+                      — just click the one this zone represents. If only one level exists, no Z range is needed.
                     </p>
                   </div>
                   <div>
@@ -987,8 +1001,8 @@ export default function ZonesPage() {
                   </div>
                 </div>
 
-                {/* Z Reference */}
-                {(loadingZ || zHistogram) && (
+                {/* Z Reference — auto-detect clusters */}
+                {(loadingZ || zClusters) && (
                   <div>
                     <label className="block text-xs text-[#6b6b8a] mb-1.5">Z Reference (existing lineups in area)</label>
                     {loadingZ ? (
@@ -996,29 +1010,51 @@ export default function ZonesPage() {
                         <Loader2 className="h-3 w-3 animate-spin" />
                         Loading Z values...
                       </div>
-                    ) : zHistogram ? (
-                      <div className="space-y-1.5">
+                    ) : zClusters ? (
+                      <div className="space-y-2">
                         <div className="text-[10px] text-[#555577]">
-                          {zHistogram.total} positions — Z range: {zHistogram.min} to {zHistogram.max}
+                          {zClusters.total} positions — {zClusters.clusters.length === 1
+                            ? 'single height level (no Z range needed)'
+                            : `${zClusters.clusters.length} height levels detected`}
                         </div>
-                        <div className="flex items-end gap-px h-10">
-                          {zHistogram.entries.map(([bin, count]) => (
-                            <button
-                              key={bin}
-                              className="flex-1 bg-[#f0a500]/30 hover:bg-[#f0a500]/60 rounded-t transition-colors group relative"
-                              style={{ height: `${(count / zHistogram.maxCount) * 100}%`, minHeight: 2 }}
-                              onClick={() => {
-                                setFormZMin(String(bin - 25));
-                                setFormZMax(String(bin + 25));
-                              }}
-                              title={`Z≈${bin} (${count} lineups) — click to set range`}
-                            />
-                          ))}
-                        </div>
-                        <div className="flex justify-between text-[9px] text-[#555577]">
-                          <span>{zHistogram.entries[0]?.[0]}</span>
-                          <span>{zHistogram.entries[zHistogram.entries.length - 1]?.[0]}</span>
-                        </div>
+                        {zClusters.clusters.length >= 2 && (
+                          <div className="flex flex-col gap-1.5">
+                            {zClusters.clusters.map((cluster, idx) => {
+                              const label = idx === 0 ? 'Lower' : idx === zClusters.clusters.length - 1 ? 'Upper' : `Level ${idx + 1}`;
+                              const margin = 15;
+                              const rangeMin = Math.round(cluster.min - margin);
+                              const rangeMax = Math.round(cluster.max + margin);
+                              const isActive = formZMin === String(rangeMin) && formZMax === String(rangeMax);
+                              return (
+                                <button
+                                  key={idx}
+                                  onClick={() => {
+                                    setFormZMin(String(rangeMin));
+                                    setFormZMax(String(rangeMax));
+                                  }}
+                                  className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors border ${
+                                    isActive
+                                      ? 'border-[#f0a500] bg-[#f0a500]/15 text-[#f0a500]'
+                                      : 'border-[#2a2a3e] bg-[#12121a] text-[#9999aa] hover:border-[#f0a500]/50 hover:text-[#e8e8e8]'
+                                  }`}
+                                >
+                                  <span className="font-medium">{label}</span>
+                                  <span className="font-mono text-[10px]">
+                                    Z {rangeMin} to {rangeMax} ({cluster.values.length} nades)
+                                  </span>
+                                </button>
+                              );
+                            })}
+                            {formZMin && (
+                              <button
+                                onClick={() => { setFormZMin(''); setFormZMax(''); }}
+                                className="text-[10px] text-[#6b6b8a] hover:text-[#ff4444] transition-colors text-left"
+                              >
+                                Clear Z range
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <div className="text-[10px] text-[#555577]">No lineups found in this area</div>

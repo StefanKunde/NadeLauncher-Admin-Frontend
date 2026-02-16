@@ -16,6 +16,9 @@ import {
   X,
   MousePointer,
   Check,
+  HelpCircle,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { zonesApi } from '@/lib/api';
 import { MAP_COORDINATES, worldToRadar, radarToWorld } from '@/lib/map-coordinates';
@@ -79,6 +82,9 @@ export default function ZonesPage() {
 
   // Bulk rename
   const [bulkRenaming, setBulkRenaming] = useState(false);
+
+  // Guide
+  const [showGuide, setShowGuide] = useState(false);
 
   const radarRef = useRef<HTMLDivElement>(null);
 
@@ -443,6 +449,90 @@ export default function ZonesPage() {
             </p>
           </div>
         </div>
+      </div>
+
+      {/* Guide */}
+      <div className="glass rounded-xl overflow-hidden">
+        <button
+          onClick={() => setShowGuide((p) => !p)}
+          className="w-full flex items-center gap-2.5 px-4 py-3 text-left hover:bg-white/[0.02] transition-colors"
+        >
+          <HelpCircle className="h-4 w-4 text-[#f0a500] shrink-0" />
+          <span className="text-sm font-medium text-[#e8e8e8]">How to use Map Zones</span>
+          {showGuide ? (
+            <ChevronUp className="h-4 w-4 text-[#6b6b8a] ml-auto" />
+          ) : (
+            <ChevronDown className="h-4 w-4 text-[#6b6b8a] ml-auto" />
+          )}
+        </button>
+        <AnimatePresence>
+          {showGuide && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="overflow-hidden"
+            >
+              <div className="px-4 pb-4 pt-1 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3 text-xs text-[#9999aa] leading-relaxed">
+                <div className="space-y-3">
+                  <div>
+                    <h4 className="text-[#e8e8e8] font-semibold mb-1">Creating Zones</h4>
+                    <p>
+                      Click <span className="text-[#f0a500]">Draw Zone</span>, then click &amp; drag on the radar
+                      to create an octagonal zone. The zone grows from the center as you drag outward. Release to finalize
+                      the shape, then fill in the name and save.
+                    </p>
+                  </div>
+                  <div>
+                    <h4 className="text-[#e8e8e8] font-semibold mb-1">How Naming Works</h4>
+                    <p>
+                      When a nade lands in a zone, it gets that zone&apos;s name. If it falls within two overlapping zones,
+                      the name becomes <span className="text-white font-mono">Specific (General)</span> &mdash;
+                      highest priority first, second in parentheses.
+                      The full nade name combines both positions: <span className="text-white font-mono">Throw Zone &rarr; Land Zone</span>.
+                    </p>
+                  </div>
+                  <div>
+                    <h4 className="text-[#e8e8e8] font-semibold mb-1">Priority</h4>
+                    <p>
+                      Controls which zone name appears first when zones overlap.
+                      Use <span className="text-white">higher values</span> (e.g. 10&ndash;15) for small, specific areas like &quot;Jungle&quot; or &quot;Window&quot;,
+                      and <span className="text-white">lower values</span> (e.g. 1&ndash;5) for large general areas like &quot;A Site&quot; or &quot;Mid&quot;.
+                      A nade in both &quot;Jungle&quot; (P10) and &quot;A Site&quot; (P3) becomes <span className="text-white font-mono">Jungle (A Site)</span>.
+                    </p>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <div>
+                    <h4 className="text-[#e8e8e8] font-semibold mb-1">Z Range (Vertical Overlap)</h4>
+                    <p>
+                      Most zones don&apos;t need a Z range &mdash; areas like stairs and ramps have unique X/Y positions.
+                      Only set Z min/max when <span className="text-white">two zones overlap on the same X/Y at different heights</span>,
+                      e.g. Mirage Window (above) vs. Underpass (below), or Nuke Heaven vs. Under Heaven.
+                    </p>
+                  </div>
+                  <div>
+                    <h4 className="text-[#e8e8e8] font-semibold mb-1">Z Reference Histogram</h4>
+                    <p>
+                      When creating or editing a zone, the histogram shows the Z heights of existing lineups
+                      within that polygon. Use it to see natural height clusters and click a bar to auto-fill the Z range.
+                      This helps you pick the right Z min/max for vertically overlapping zones.
+                    </p>
+                  </div>
+                  <div>
+                    <h4 className="text-[#e8e8e8] font-semibold mb-1">Bulk Rename</h4>
+                    <p>
+                      Re-resolves names for all <span className="text-white">preset/pro lineups</span> on the selected map
+                      using the current zones. Use this after adding or modifying zones to update existing nade names.
+                      Community and user collections are never affected.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Controls */}

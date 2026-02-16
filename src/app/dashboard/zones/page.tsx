@@ -32,7 +32,6 @@ const ZONE_COLORS = [
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 3.0;
 const ZOOM_STEP = 0.15;
-const SNAP_DISTANCE = 12; // pixels to snap-close polygon
 
 export default function ZonesPage() {
   // Map selection
@@ -55,11 +54,14 @@ export default function ZonesPage() {
   const dragStart = useRef({ x: 0, y: 0 });
   const panStart = useRef({ x: 0, y: 0 });
 
-  // Drawing mode
+  // Drawing mode (drag-to-create)
   const [isDrawing, setIsDrawing] = useState(false);
   const [drawingVertices, setDrawingVertices] = useState<{ x: number; y: number }[]>([]);
   const [cursorRadar, setCursorRadar] = useState<{ x: number; y: number } | null>(null);
   const drawingReadyRef = useRef(false);
+  const [dragCenter, setDragCenter] = useState<{ x: number; y: number } | null>(null);
+  const isDragCreating = useRef(false);
+  const cursorRadarRef = useRef<{ x: number; y: number } | null>(null);
 
   // Zone form
   const [formOpen, setFormOpen] = useState(false);
@@ -129,22 +131,36 @@ export default function ZonesPage() {
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
-      if (isDrawing || zoom <= 1) return;
+      // Drawing mode: start drag to create zone
+      if (isDrawing && drawingReadyRef.current && radarRef.current && config) {
+        const rect = radarRef.current.getBoundingClientRect();
+        const rx = ((e.clientX - rect.left) / rect.width) * 100;
+        const ry = ((e.clientY - rect.top) / rect.height) * 100;
+        setDragCenter({ x: rx, y: ry });
+        setCursorRadar({ x: rx, y: ry });
+        cursorRadarRef.current = { x: rx, y: ry };
+        isDragCreating.current = true;
+        e.preventDefault();
+        return;
+      }
+      if (zoom <= 1) return;
       isDragging.current = true;
       dragStart.current = { x: e.clientX, y: e.clientY };
       panStart.current = { ...pan };
     },
-    [isDrawing, zoom, pan],
+    [isDrawing, zoom, pan, config],
   );
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent) => {
-      // Update cursor position for drawing preview
-      if (isDrawing && radarRef.current) {
+      // Drawing drag: update cursor for radius preview
+      if (isDragCreating.current && radarRef.current) {
         const rect = radarRef.current.getBoundingClientRect();
         const rx = ((e.clientX - rect.left) / rect.width) * 100;
         const ry = ((e.clientY - rect.top) / rect.height) * 100;
         setCursorRadar({ x: rx, y: ry });
+        cursorRadarRef.current = { x: rx, y: ry };
+        return;
       }
 
       if (!isDragging.current) return;
@@ -155,66 +171,75 @@ export default function ZonesPage() {
         y: panStart.current.y + dy,
       });
     },
-    [isDrawing],
+    [],
   );
 
   const handleMouseUp = useCallback(() => {
+    // Finalize drag-create zone
+    if (isDragCreating.current && dragCenter && config) {
+      isDragCreating.current = false;
+      const cursor = cursorRadarRef.current;
+      if (!cursor) {
+        setDragCenter(null);
+        return;
+      }
+
+      const dx = cursor.x - dragCenter.x;
+      const dy = cursor.y - dragCenter.y;
+      const radius = Math.sqrt(dx * dx + dy * dy);
+
+      if (radius < 1.5) {
+        // Too small, ignore
+        setDragCenter(null);
+        setCursorRadar(null);
+        cursorRadarRef.current = null;
+        return;
+      }
+
+      // Generate octagon in radar %, convert to world coords
+      const SIDES = 8;
+      const worldVerts: { x: number; y: number }[] = [];
+      for (let i = 0; i < SIDES; i++) {
+        const angle = (i * Math.PI * 2) / SIDES - Math.PI / 2;
+        const rx = dragCenter.x + radius * Math.cos(angle);
+        const ry = dragCenter.y + radius * Math.sin(angle);
+        worldVerts.push(radarToWorld(rx, ry, config));
+      }
+
+      setDrawingVertices(worldVerts);
+      setIsDrawing(false);
+      drawingReadyRef.current = false;
+      setDragCenter(null);
+      setCursorRadar(null);
+      cursorRadarRef.current = null;
+
+      // Open form to save
+      setEditingZone(null);
+      setFormName('');
+      setFormColor(ZONE_COLORS[zones.length % ZONE_COLORS.length]);
+      setFormPriority(5);
+      setFormZMin('');
+      setFormZMax('');
+      setFormOpen(true);
+      loadZValuesForPolygon(worldVerts);
+      return;
+    }
+
     isDragging.current = false;
-  }, []);
+  }, [dragCenter, config, zones.length, loadZValuesForPolygon]);
 
   const isZoomed = zoom !== 1;
 
-  // ── Polygon drawing ──
-
-  const handleRadarClick = useCallback(
-    (e: React.MouseEvent) => {
-      if (!isDrawing || !drawingReadyRef.current || !radarRef.current || !config) return;
-      e.stopPropagation();
-
-      const rect = radarRef.current.getBoundingClientRect();
-      const radarX = ((e.clientX - rect.left) / rect.width) * 100;
-      const radarY = ((e.clientY - rect.top) / rect.height) * 100;
-
-      // Check if close to first vertex (snap-close)
-      if (drawingVertices.length >= 3) {
-        const firstRadar = worldToRadar(drawingVertices[0].x, drawingVertices[0].y, config);
-        const dx = (radarX - firstRadar.x) * (rect.width / 100);
-        const dy = (radarY - firstRadar.y) * (rect.height / 100);
-        if (Math.sqrt(dx * dx + dy * dy) < SNAP_DISTANCE) {
-          finishDrawing();
-          return;
-        }
-      }
-
-      const world = radarToWorld(radarX, radarY, config);
-      setDrawingVertices((prev) => [...prev, world]);
-    },
-    [isDrawing, config, drawingVertices],
-  );
-
-  const finishDrawing = useCallback(() => {
-    if (drawingVertices.length < 3) {
-      toast.error('Need at least 3 points');
-      return;
-    }
-    setIsDrawing(false);
-    setCursorRadar(null);
-    // Open form to save
-    setEditingZone(null);
-    setFormName('');
-    setFormColor(ZONE_COLORS[zones.length % ZONE_COLORS.length]);
-    setFormPriority(5);
-    setFormZMin('');
-    setFormZMax('');
-    setFormOpen(true);
-    loadZValuesForPolygon(drawingVertices);
-  }, [drawingVertices, zones.length]);
+  // ── Drawing ──
 
   const cancelDrawing = useCallback(() => {
     setIsDrawing(false);
     drawingReadyRef.current = false;
+    isDragCreating.current = false;
     setDrawingVertices([]);
+    setDragCenter(null);
     setCursorRadar(null);
+    cursorRadarRef.current = null;
   }, []);
 
   const startDrawing = useCallback(() => {
@@ -442,17 +467,8 @@ export default function ZonesPage() {
         ) : (
           <div className="flex items-center gap-2">
             <span className="text-sm text-[#f0a500] font-medium animate-pulse">
-              Click to place vertices ({drawingVertices.length} placed)
+              Click &amp; drag on the map to create a zone
             </span>
-            {drawingVertices.length >= 3 && (
-              <button
-                onClick={finishDrawing}
-                className="btn-primary flex items-center gap-2 text-sm"
-              >
-                <Check className="h-4 w-4" />
-                Finish
-              </button>
-            )}
             <button
               onClick={cancelDrawing}
               className="px-3 py-1.5 rounded-lg text-sm text-[#6b6b8a] hover:text-[#ff4444] hover:bg-[#ff4444]/10 transition-colors"
@@ -496,7 +512,6 @@ export default function ZonesPage() {
               handleMouseUp();
               setCursorRadar(null);
             }}
-            onClick={handleRadarClick}
           >
             <div
               className="absolute inset-0 origin-center"
@@ -538,60 +553,50 @@ export default function ZonesPage() {
                   );
                 })}
 
-                {/* Drawing in progress */}
-                {isDrawing && drawingVertices.length > 0 && (() => {
-                  const radarVerts = drawingVertices.map((p) => worldToRadar(p.x, p.y, config));
-                  const points = radarVerts.map((r) => `${r.x},${r.y}`).join(' ');
+                {/* Drag-create preview (octagon growing from center) */}
+                {isDrawing && dragCenter && cursorRadar && (() => {
+                  const dx = cursorRadar.x - dragCenter.x;
+                  const dy = cursorRadar.y - dragCenter.y;
+                  const radius = Math.sqrt(dx * dx + dy * dy);
+                  if (radius < 0.5) return null;
+                  const SIDES = 8;
+                  const points = Array.from({ length: SIDES }, (_, i) => {
+                    const angle = (i * Math.PI * 2) / SIDES - Math.PI / 2;
+                    return `${dragCenter.x + radius * Math.cos(angle)},${dragCenter.y + radius * Math.sin(angle)}`;
+                  }).join(' ');
                   return (
                     <>
-                      {/* Filled preview if 3+ vertices */}
-                      {radarVerts.length >= 3 && (
-                        <polygon
-                          points={points}
-                          fill="#f0a500"
-                          fillOpacity={0.15}
-                          stroke="#f0a500"
-                          strokeWidth={0.2}
-                          strokeDasharray="0.5 0.3"
-                          strokeLinejoin="round"
-                        />
-                      )}
-                      {/* Lines between vertices */}
-                      {radarVerts.length >= 2 && (
-                        <polyline
-                          points={points}
-                          fill="none"
-                          stroke="#f0a500"
-                          strokeWidth={0.25}
-                          strokeDasharray="0.5 0.3"
-                        />
-                      )}
-                      {/* Line from last vertex to cursor */}
-                      {cursorRadar && radarVerts.length > 0 && (
-                        <line
-                          x1={radarVerts[radarVerts.length - 1].x}
-                          y1={radarVerts[radarVerts.length - 1].y}
-                          x2={cursorRadar.x}
-                          y2={cursorRadar.y}
-                          stroke="#f0a500"
-                          strokeWidth={0.15}
-                          strokeDasharray="0.4 0.3"
-                          opacity={0.6}
-                        />
-                      )}
-                      {/* Vertex dots */}
-                      {radarVerts.map((r, i) => (
-                        <circle
-                          key={i}
-                          cx={r.x}
-                          cy={r.y}
-                          r={i === 0 && drawingVertices.length >= 3 ? 0.8 : 0.5}
-                          fill={i === 0 ? '#f0a500' : '#fff'}
-                          stroke={i === 0 ? '#fff' : '#f0a500'}
-                          strokeWidth={0.15}
-                        />
-                      ))}
+                      <polygon
+                        points={points}
+                        fill="#f0a500"
+                        fillOpacity={0.15}
+                        stroke="#f0a500"
+                        strokeWidth={0.25}
+                        strokeDasharray="0.5 0.3"
+                        strokeLinejoin="round"
+                      />
+                      <circle cx={dragCenter.x} cy={dragCenter.y} r={0.4} fill="#f0a500" />
                     </>
+                  );
+                })()}
+
+                {/* Drawn polygon preview (after drag, before save) */}
+                {!isDrawing && !editingZone && drawingVertices.length > 0 && formOpen && (() => {
+                  const points = drawingVertices
+                    .map((p) => {
+                      const r = worldToRadar(p.x, p.y, config);
+                      return `${r.x},${r.y}`;
+                    })
+                    .join(' ');
+                  return (
+                    <polygon
+                      points={points}
+                      fill="#f0a500"
+                      fillOpacity={0.2}
+                      stroke="#f0a500"
+                      strokeWidth={0.25}
+                      strokeLinejoin="round"
+                    />
                   );
                 })()}
               </svg>

@@ -174,6 +174,24 @@ export default function ZonesPage() {
     [],
   );
 
+  // ── Z values loading (must be before handleMouseUp) ──
+
+  const loadZValuesForPolygon = useCallback(
+    async (polygon: { x: number; y: number }[]) => {
+      if (polygon.length < 3) return;
+      setLoadingZ(true);
+      try {
+        const data = await zonesApi.getZValues(selectedMap, polygon);
+        setZValues(data);
+      } catch {
+        setZValues(null);
+      } finally {
+        setLoadingZ(false);
+      }
+    },
+    [selectedMap],
+  );
+
   const handleMouseUp = useCallback(() => {
     // Finalize drag-create zone
     if (isDragCreating.current && dragCenter && config) {
@@ -254,24 +272,6 @@ export default function ZonesPage() {
       drawingReadyRef.current = true;
     });
   }, []);
-
-  // ── Z values loading ──
-
-  const loadZValuesForPolygon = useCallback(
-    async (polygon: { x: number; y: number }[]) => {
-      if (polygon.length < 3) return;
-      setLoadingZ(true);
-      try {
-        const data = await zonesApi.getZValues(selectedMap, polygon);
-        setZValues(data);
-      } catch {
-        setZValues(null);
-      } finally {
-        setLoadingZ(false);
-      }
-    },
-    [selectedMap],
-  );
 
   // ── Zone form handlers ──
 

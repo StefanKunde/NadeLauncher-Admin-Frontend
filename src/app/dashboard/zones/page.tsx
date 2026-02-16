@@ -65,6 +65,7 @@ export default function ZonesPage() {
   const [dragCenter, setDragCenter] = useState<{ x: number; y: number } | null>(null);
   const isDragCreating = useRef(false);
   const cursorRadarRef = useRef<{ x: number; y: number } | null>(null);
+  const draggingVertexIdx = useRef<number | null>(null);
 
   // Zone form
   const [formOpen, setFormOpen] = useState(false);
@@ -159,7 +160,21 @@ export default function ZonesPage() {
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent) => {
-      // Drawing drag: update cursor for radius preview
+      // Vertex dragging
+      if (draggingVertexIdx.current !== null && radarRef.current && config) {
+        const rect = radarRef.current.getBoundingClientRect();
+        const rx = ((e.clientX - rect.left) / rect.width) * 100;
+        const ry = ((e.clientY - rect.top) / rect.height) * 100;
+        const world = radarToWorld(rx, ry, config);
+        setDrawingVertices((prev) => {
+          const next = [...prev];
+          next[draggingVertexIdx.current!] = world;
+          return next;
+        });
+        return;
+      }
+
+      // Drawing drag: update cursor for rectangle preview
       if (isDragCreating.current && radarRef.current) {
         const rect = radarRef.current.getBoundingClientRect();
         const rx = ((e.clientX - rect.left) / rect.width) * 100;
@@ -177,7 +192,7 @@ export default function ZonesPage() {
         y: panStart.current.y + dy,
       });
     },
-    [],
+    [config],
   );
 
   // ── Z values loading (must be before handleMouseUp) ──
@@ -199,7 +214,13 @@ export default function ZonesPage() {
   );
 
   const handleMouseUp = useCallback(() => {
-    // Finalize drag-create zone
+    // Vertex drag end
+    if (draggingVertexIdx.current !== null) {
+      draggingVertexIdx.current = null;
+      return;
+    }
+
+    // Finalize drag-create zone (rectangle)
     if (isDragCreating.current && dragCenter && config) {
       isDragCreating.current = false;
       const cursor = cursorRadarRef.current;
@@ -208,11 +229,12 @@ export default function ZonesPage() {
         return;
       }
 
-      const dx = cursor.x - dragCenter.x;
-      const dy = cursor.y - dragCenter.y;
-      const radius = Math.sqrt(dx * dx + dy * dy);
+      const x1 = Math.min(dragCenter.x, cursor.x);
+      const y1 = Math.min(dragCenter.y, cursor.y);
+      const x2 = Math.max(dragCenter.x, cursor.x);
+      const y2 = Math.max(dragCenter.y, cursor.y);
 
-      if (radius < 1.5) {
+      if (x2 - x1 < 1.5 || y2 - y1 < 1.5) {
         // Too small, ignore
         setDragCenter(null);
         setCursorRadar(null);
@@ -220,15 +242,13 @@ export default function ZonesPage() {
         return;
       }
 
-      // Generate octagon in radar %, convert to world coords
-      const SIDES = 8;
-      const worldVerts: { x: number; y: number }[] = [];
-      for (let i = 0; i < SIDES; i++) {
-        const angle = (i * Math.PI * 2) / SIDES - Math.PI / 2;
-        const rx = dragCenter.x + radius * Math.cos(angle);
-        const ry = dragCenter.y + radius * Math.sin(angle);
-        worldVerts.push(radarToWorld(rx, ry, config));
-      }
+      // Generate rectangle corners, convert to world coords
+      const worldVerts = [
+        radarToWorld(x1, y1, config),
+        radarToWorld(x2, y1, config),
+        radarToWorld(x2, y2, config),
+        radarToWorld(x1, y2, config),
+      ];
 
       setDrawingVertices(worldVerts);
       setIsDrawing(false);
@@ -298,7 +318,7 @@ export default function ZonesPage() {
   );
 
   const handleSave = useCallback(async () => {
-    const polygon = editingZone ? editingZone.polygon : drawingVertices;
+    const polygon = drawingVertices;
     if (polygon.length < 3) {
       toast.error('Zone needs at least 3 vertices');
       return;
@@ -480,8 +500,8 @@ export default function ZonesPage() {
                     <h4 className="text-[#e8e8e8] font-semibold mb-1">Creating Zones</h4>
                     <p>
                       Click <span className="text-[#f0a500]">Draw Zone</span>, then click &amp; drag on the radar
-                      to create an octagonal zone. The zone grows from the center as you drag outward. Release to finalize
-                      the shape, then fill in the name and save.
+                      to create a rectangular zone. Release to finalize the shape. You can then drag any corner to adjust
+                      the shape before saving. The same draggable corners appear when editing an existing zone.
                     </p>
                   </div>
                   <div>
@@ -643,35 +663,29 @@ export default function ZonesPage() {
                   );
                 })}
 
-                {/* Drag-create preview (octagon growing from center) */}
+                {/* Drag-create preview (rectangle) */}
                 {isDrawing && dragCenter && cursorRadar && (() => {
-                  const dx = cursorRadar.x - dragCenter.x;
-                  const dy = cursorRadar.y - dragCenter.y;
-                  const radius = Math.sqrt(dx * dx + dy * dy);
-                  if (radius < 0.5) return null;
-                  const SIDES = 8;
-                  const points = Array.from({ length: SIDES }, (_, i) => {
-                    const angle = (i * Math.PI * 2) / SIDES - Math.PI / 2;
-                    return `${dragCenter.x + radius * Math.cos(angle)},${dragCenter.y + radius * Math.sin(angle)}`;
-                  }).join(' ');
+                  const x1 = Math.min(dragCenter.x, cursorRadar.x);
+                  const y1 = Math.min(dragCenter.y, cursorRadar.y);
+                  const x2 = Math.max(dragCenter.x, cursorRadar.x);
+                  const y2 = Math.max(dragCenter.y, cursorRadar.y);
+                  if (x2 - x1 < 0.5 && y2 - y1 < 0.5) return null;
+                  const points = `${x1},${y1} ${x2},${y1} ${x2},${y2} ${x1},${y2}`;
                   return (
-                    <>
-                      <polygon
-                        points={points}
-                        fill="#f0a500"
-                        fillOpacity={0.15}
-                        stroke="#f0a500"
-                        strokeWidth={0.25}
-                        strokeDasharray="0.5 0.3"
-                        strokeLinejoin="round"
-                      />
-                      <circle cx={dragCenter.x} cy={dragCenter.y} r={0.4} fill="#f0a500" />
-                    </>
+                    <polygon
+                      points={points}
+                      fill="#f0a500"
+                      fillOpacity={0.15}
+                      stroke="#f0a500"
+                      strokeWidth={0.25}
+                      strokeDasharray="0.5 0.3"
+                      strokeLinejoin="round"
+                    />
                   );
                 })()}
 
-                {/* Drawn polygon preview (after drag, before save) */}
-                {!isDrawing && !editingZone && drawingVertices.length > 0 && formOpen && (() => {
+                {/* Polygon preview (new zone or editing existing) */}
+                {!isDrawing && drawingVertices.length > 0 && formOpen && (() => {
                   const points = drawingVertices
                     .map((p) => {
                       const r = worldToRadar(p.x, p.y, config);
@@ -682,14 +696,31 @@ export default function ZonesPage() {
                     <polygon
                       points={points}
                       fill="#f0a500"
-                      fillOpacity={0.2}
+                      fillOpacity={0.25}
                       stroke="#f0a500"
-                      strokeWidth={0.25}
+                      strokeWidth={0.3}
                       strokeLinejoin="round"
                     />
                   );
                 })()}
               </svg>
+
+              {/* Draggable vertex handles */}
+              {formOpen && drawingVertices.length > 0 && drawingVertices.map((v, i) => {
+                const r = worldToRadar(v.x, v.y, config);
+                return (
+                  <div
+                    key={`vtx-${i}`}
+                    className="absolute z-30 -translate-x-1/2 -translate-y-1/2 h-3 w-3 rounded-full border-2 border-white bg-[#f0a500] cursor-move hover:scale-150 transition-transform"
+                    style={{ left: `${r.x}%`, top: `${r.y}%` }}
+                    onMouseDown={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      draggingVertexIdx.current = i;
+                    }}
+                  />
+                );
+              })}
 
               {/* Zone name labels */}
               {zones.map((zone) => {

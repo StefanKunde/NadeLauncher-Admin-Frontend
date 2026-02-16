@@ -9,6 +9,7 @@ import type {
   CollectionWithLineups,
   Lineup,
   HiddenLineup,
+  MapZone,
   UserRole,
   Session,
   PaginatedSessions,
@@ -191,6 +192,59 @@ export const hiddenLineupsApi = {
     api.post('/admin/hidden-lineups', { lineupId, reason }).then((r) => unwrap<HiddenLineup>(r.data)),
   unhide: (id: string) =>
     api.delete(`/admin/hidden-lineups/${id}`),
+};
+
+// Map Zones
+export const zonesApi = {
+  getAll: (mapName: string) =>
+    api.get('/api/zones', { params: { map: mapName } }).then((r) => extract<MapZone[]>(r)),
+  getById: (id: string) =>
+    api.get(`/api/zones/${id}`).then((r) => extract<MapZone>(r)),
+  create: (data: {
+    mapName: string;
+    name: string;
+    polygon: { x: number; y: number }[];
+    zMin?: number | null;
+    zMax?: number | null;
+    priority?: number;
+    color?: string;
+  }) => api.post('/api/zones', data).then((r) => extract<MapZone>(r)),
+  update: (
+    id: string,
+    data: {
+      name?: string;
+      polygon?: { x: number; y: number }[];
+      zMin?: number | null;
+      zMax?: number | null;
+      priority?: number;
+      color?: string;
+    },
+  ) => api.put(`/api/zones/${id}`, data).then((r) => extract<MapZone>(r)),
+  delete: (id: string) => api.delete(`/api/zones/${id}`),
+  resolveName: (data: {
+    mapName: string;
+    throwX: number;
+    throwY: number;
+    throwZ: number;
+    landX: number;
+    landY: number;
+    landZ: number;
+  }) =>
+    api
+      .post('/api/zones/resolve-name', data)
+      .then((r) => extract<{ throwZone: string; landZone: string; fullName: string }>(r)),
+  getZValues: (mapName: string, polygon: { x: number; y: number }[]) =>
+    api
+      .post('/api/zones/z-values', { mapName, polygon })
+      .then((r) => extract<{ throwZ: number[]; landZ: number[] }>(r)),
+  bulkRename: (mapName: string) =>
+    api
+      .post(`/api/zones/bulk-rename/${mapName}`)
+      .then((r) => extract<{ updated: number; total: number }>(r)),
+  renameCollection: (collectionId: string) =>
+    api
+      .post(`/api/zones/rename-collection/${collectionId}`)
+      .then((r) => extract<{ updated: number; total: number; mapName: string }>(r)),
 };
 
 export default api;

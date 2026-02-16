@@ -65,3 +65,13 @@ export function worldToRadar(
   const y = ((config.posY - worldY) / (config.scale * RADAR_SIZE)) * 100;
   return { x, y };
 }
+
+export function radarToWorld(
+  radarX: number,
+  radarY: number,
+  config: MapCoordinateConfig,
+): { x: number; y: number } {
+  const x = (radarX / 100) * (config.scale * RADAR_SIZE) + config.posX;
+  const y = config.posY - (radarY / 100) * (config.scale * RADAR_SIZE);
+  return { x, y };
+}

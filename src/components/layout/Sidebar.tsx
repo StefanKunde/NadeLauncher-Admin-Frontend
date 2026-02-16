@@ -15,6 +15,7 @@ import {
   EyeOff,
   Activity,
   Database,
+  Map,
 } from 'lucide-react';
 import { useAuthStore } from '@/store/auth-store';
 
@@ -24,6 +25,7 @@ const NAV_ITEMS = [
   { href: '/dashboard/collections', icon: FolderOpen, label: 'Collections' },
   { href: '/dashboard/sessions', icon: Activity, label: 'Sessions' },
   { href: '/dashboard/editor', icon: Server, label: 'Editor' },
+  { href: '/dashboard/zones', icon: Map, label: 'Map Zones' },
   { href: '/dashboard/hidden-lineups', icon: EyeOff, label: 'Hidden Lineups' },
   { href: '/dashboard/redis', icon: Database, label: 'Redis' },
 ];

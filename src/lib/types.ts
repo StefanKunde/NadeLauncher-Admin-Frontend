@@ -166,3 +166,16 @@ export interface ExhaustedUser {
   usedSeconds: number;
   limitSeconds: number;
 }
+
+export interface MapZone {
+  id: string;
+  mapName: string;
+  name: string;
+  polygon: { x: number; y: number }[];
+  zMin: number | null;
+  zMax: number | null;
+  priority: number;
+  color: string;
+  createdAt: string;
+  updatedAt: string;
+}

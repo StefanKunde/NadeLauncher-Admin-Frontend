@@ -424,7 +424,16 @@ export default function ZonesPage() {
         await zonesApi.update(editingZone.id, data);
         toast.success('Zone updated');
       } else {
-        await zonesApi.create(data);
+        const created = await zonesApi.create(data);
+        // If zones are hidden, make the new one visible
+        if (visibleZoneIds !== 'all') {
+          setVisibleZoneIds((prev) => {
+            if (prev === 'all') return prev;
+            const set = new Set(prev);
+            set.add(created.id);
+            return set;
+          });
+        }
         toast.success('Zone created');
       }
 
@@ -438,7 +447,7 @@ export default function ZonesPage() {
     } finally {
       setSaving(false);
     }
-  }, [editingZone, drawingVertices, formName, formColor, formPriority, formZMin, formZMax, selectedMap, loadZones]);
+  }, [editingZone, drawingVertices, formName, formColor, formPriority, formZMin, formZMax, selectedMap, loadZones, visibleZoneIds]);
 
   const handleDelete = useCallback(
     async (id: string) => {

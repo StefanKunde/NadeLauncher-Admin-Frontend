@@ -59,7 +59,7 @@ export default function ZonesPage() {
   const dragStart = useRef({ x: 0, y: 0 });
   const panStart = useRef({ x: 0, y: 0 });
 
-  const [hideZones, setHideZones] = useState(false);
+  const [visibleZoneIds, setVisibleZoneIds] = useState<Set<string> | 'all'>('all');
 
   // Drawing mode (drag-to-create)
   const [isDrawing, setIsDrawing] = useState(false);
@@ -746,15 +746,15 @@ export default function ZonesPage() {
 
         <div className="ml-auto flex items-center gap-2">
           <button
-            onClick={() => setHideZones((h) => !h)}
+            onClick={() => setVisibleZoneIds((prev) => prev === 'all' ? new Set<string>() : 'all')}
             className={`p-1.5 rounded-lg transition-colors ${
-              hideZones
+              visibleZoneIds !== 'all'
                 ? 'text-[#f0a500] bg-[#f0a500]/15 border border-[#f0a500]/50'
                 : 'text-[#6b6b8a] hover:text-[#e8e8e8] border border-transparent'
             }`}
-            title={hideZones ? 'Show zones on radar' : 'Hide zones on radar'}
+            title={visibleZoneIds !== 'all' ? 'Show all zones' : 'Hide all zones'}
           >
-            {hideZones ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            {visibleZoneIds !== 'all' ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </button>
           <span className="text-xs text-[#6b6b8a]">{zones.length} zone{zones.length !== 1 ? 's' : ''}</span>
           <button
@@ -817,7 +817,9 @@ export default function ZonesPage() {
                 preserveAspectRatio="none"
               >
                 {/* Existing zones */}
-                {!hideZones && zones.map((zone) => {
+                {zones.map((zone) => {
+                  const isVisible = visibleZoneIds === 'all' || visibleZoneIds.has(zone.id);
+                  if (!isVisible) return null;
                   const isSelected = zone.id === selectedZoneId;
                   const points = polygonToSvgPoints(zone.polygon);
                   return (
@@ -904,6 +906,8 @@ export default function ZonesPage() {
 
               {/* Zone name labels */}
               {zones.map((zone) => {
+                const isVisible = visibleZoneIds === 'all' || visibleZoneIds.has(zone.id);
+                if (!isVisible) return null;
                 const center = getPolygonCenter(zone.polygon);
                 const isSelected = zone.id === selectedZoneId;
                 return (
@@ -1212,6 +1216,38 @@ export default function ZonesPage() {
                         </span>
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setVisibleZoneIds((prev) => {
+                              if (prev === 'all') {
+                                // Switch to per-zone mode: all visible except this one
+                                const set = new Set(zones.map((z) => z.id));
+                                set.delete(zone.id);
+                                return set;
+                              }
+                              const set = new Set(prev);
+                              if (set.has(zone.id)) {
+                                set.delete(zone.id);
+                              } else {
+                                set.add(zone.id);
+                              }
+                              // If all are visible again, switch back to 'all'
+                              if (set.size === zones.length) return 'all';
+                              return set;
+                            });
+                          }}
+                          className={`p-1 rounded transition-colors ${
+                            visibleZoneIds === 'all' || visibleZoneIds.has(zone.id)
+                              ? 'text-[#6b6b8a] hover:text-[#f0a500] hover:bg-[#f0a500]/10'
+                              : 'text-[#555577]/50 hover:text-[#f0a500] hover:bg-[#f0a500]/10'
+                          }`}
+                          title={visibleZoneIds === 'all' || visibleZoneIds.has(zone.id) ? 'Hide on radar' : 'Show on radar'}
+                        >
+                          {visibleZoneIds === 'all' || visibleZoneIds.has(zone.id)
+                            ? <Eye className="h-3.5 w-3.5" />
+                            : <EyeOff className="h-3.5 w-3.5" />}
+                        </button>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();

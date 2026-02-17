@@ -884,8 +884,8 @@ export default function ZonesPage() {
                 return (
                   <div
                     key={`vtx-${i}`}
-                    className="absolute z-30 -translate-x-1/2 -translate-y-1/2 h-3 w-3 rounded-full border-2 border-white bg-[#f0a500] cursor-move hover:scale-150 transition-transform"
-                    style={{ left: `${r.x}%`, top: `${r.y}%` }}
+                    className="absolute z-30 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-[#f0a500] cursor-move hover:scale-150 transition-transform"
+                    style={{ left: `${r.x}%`, top: `${r.y}%`, width: `${Math.max(6, 12 / zoom)}px`, height: `${Math.max(6, 12 / zoom)}px` }}
                     onMouseDown={(e) => {
                       e.stopPropagation();
                       e.preventDefault();

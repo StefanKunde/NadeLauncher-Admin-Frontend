@@ -507,38 +507,98 @@ export default function ZonesPage() {
     [config],
   );
 
-  // ── Z cluster detection ──
+  // ── Z cluster detection (Otsu's method for ground-level split) ──
 
   const zClusters = useMemo(() => {
     if (!zValues) return null;
     const allZ = [...zValues.throwZ, ...zValues.landZ].sort((a, b) => a - b);
     if (allZ.length === 0) return null;
 
-    // Find clusters by detecting gaps > 40 units between sorted values
-    const clusters: { values: number[]; min: number; max: number; median: number }[] = [];
-    let current: number[] = [allZ[0]];
-
-    for (let i = 1; i < allZ.length; i++) {
-      if (allZ[i] - allZ[i - 1] > 40) {
-        // Gap found — finalize current cluster
-        clusters.push({
-          values: current,
-          min: current[0],
-          max: current[current.length - 1],
-          median: current[Math.floor(current.length / 2)],
-        });
-        current = [];
-      }
-      current.push(allZ[i]);
+    // Separate ground-level (Z < 200) from airborne nades
+    const groundZ = allZ.filter((z) => z < 200);
+    if (groundZ.length < 4) {
+      return { clusters: [], total: allZ.length, splitPoints: [] };
     }
-    clusters.push({
-      values: current,
-      min: current[0],
-      max: current[current.length - 1],
-      median: current[Math.floor(current.length / 2)],
-    });
 
-    return { clusters, total: allZ.length, globalMin: allZ[0], globalMax: allZ[allZ.length - 1] };
+    // Otsu's method: find the Z threshold that maximizes between-class variance
+    function otsuSplit(values: number[]): { lower: number[]; upper: number[]; splitZ: number } | null {
+      if (values.length < 4) return null;
+      const range = values[values.length - 1] - values[0];
+      if (range < 80) return null;
+
+      let bestThreshold = values[0];
+      let bestVariance = -1;
+
+      for (let i = 1; i < values.length; i++) {
+        if (values[i] === values[i - 1]) continue;
+        const threshold = (values[i - 1] + values[i]) / 2;
+        const lower = values.filter((z) => z <= threshold);
+        const upper = values.filter((z) => z > threshold);
+        if (lower.length < 2 || upper.length < 2) continue;
+
+        const w0 = lower.length / values.length;
+        const w1 = upper.length / values.length;
+        const mean0 = lower.reduce((s, v) => s + v, 0) / lower.length;
+        const mean1 = upper.reduce((s, v) => s + v, 0) / upper.length;
+        const variance = w0 * w1 * (mean0 - mean1) ** 2;
+        if (variance > bestVariance) {
+          bestVariance = variance;
+          bestThreshold = threshold;
+        }
+      }
+
+      const lower = values.filter((z) => z <= bestThreshold);
+      const upper = values.filter((z) => z > bestThreshold);
+      if (lower.length < 2 || upper.length < 2) return null;
+
+      const mean0 = lower.reduce((s, v) => s + v, 0) / lower.length;
+      const mean1 = upper.reduce((s, v) => s + v, 0) / upper.length;
+      if (Math.abs(mean1 - mean0) < 60) return null;
+
+      return { lower, upper, splitZ: Math.round(bestThreshold) };
+    }
+
+    function makeCluster(values: number[]) {
+      const mean = values.reduce((s, v) => s + v, 0) / values.length;
+      return { values, min: values[0], max: values[values.length - 1], mean: Math.round(mean) };
+    }
+
+    // First split
+    const split1 = otsuSplit(groundZ);
+    if (!split1) {
+      return { clusters: [], total: allZ.length, splitPoints: [] };
+    }
+
+    // Try to split each half again for 3-level maps (e.g., Nuke)
+    const subLower = otsuSplit(split1.lower);
+    const subUpper = otsuSplit(split1.upper);
+
+    let clusters: { values: number[]; min: number; max: number; mean: number }[];
+    let splitPoints: number[];
+
+    if (subLower && subUpper) {
+      // Both halves can split — pick the more meaningful one (larger mean gap)
+      const lowerGap = Math.abs(makeCluster(subLower.upper).mean - makeCluster(subLower.lower).mean);
+      const upperGap = Math.abs(makeCluster(subUpper.upper).mean - makeCluster(subUpper.lower).mean);
+      if (lowerGap >= upperGap) {
+        clusters = [makeCluster(subLower.lower), makeCluster(subLower.upper), makeCluster(split1.upper)];
+        splitPoints = [subLower.splitZ, split1.splitZ];
+      } else {
+        clusters = [makeCluster(split1.lower), makeCluster(subUpper.lower), makeCluster(subUpper.upper)];
+        splitPoints = [split1.splitZ, subUpper.splitZ];
+      }
+    } else if (subLower) {
+      clusters = [makeCluster(subLower.lower), makeCluster(subLower.upper), makeCluster(split1.upper)];
+      splitPoints = [subLower.splitZ, split1.splitZ];
+    } else if (subUpper) {
+      clusters = [makeCluster(split1.lower), makeCluster(subUpper.lower), makeCluster(subUpper.upper)];
+      splitPoints = [split1.splitZ, subUpper.splitZ];
+    } else {
+      clusters = [makeCluster(split1.lower), makeCluster(split1.upper)];
+      splitPoints = [split1.splitZ];
+    }
+
+    return { clusters, total: allZ.length, splitPoints };
   }, [zValues]);
 
   if (!config) return null;
@@ -1004,7 +1064,7 @@ export default function ZonesPage() {
                 {/* Z Reference — auto-detect clusters */}
                 {(loadingZ || zClusters) && (
                   <div>
-                    <label className="block text-xs text-[#6b6b8a] mb-1.5">Z Reference (existing lineups in area)</label>
+                    <label className="block text-xs text-[#6b6b8a] mb-1.5">Z Auto-Detect (existing lineups in area)</label>
                     {loadingZ ? (
                       <div className="flex items-center gap-2 text-xs text-[#555577]">
                         <Loader2 className="h-3 w-3 animate-spin" />
@@ -1013,18 +1073,26 @@ export default function ZonesPage() {
                     ) : zClusters ? (
                       <div className="space-y-2">
                         <div className="text-[10px] text-[#555577]">
-                          {zClusters.total} positions — {zClusters.clusters.length === 1
+                          {zClusters.total} positions — {zClusters.clusters.length === 0
                             ? 'single height level (no Z range needed)'
                             : `${zClusters.clusters.length} height levels detected`}
                         </div>
                         {zClusters.clusters.length >= 2 && (
                           <div className="flex flex-col gap-1.5">
+                            <div className="text-[10px] text-[#6b6b8a]">
+                              Split{zClusters.splitPoints.length > 1 ? 's' : ''} at Z {zClusters.splitPoints.join(', ')} — avg{' '}
+                              {zClusters.clusters.map((c, i) => `Z ${c.mean}`).join(' / ')}
+                            </div>
                             {zClusters.clusters.map((cluster, idx) => {
                               const isLast = idx === zClusters.clusters.length - 1;
-                              const label = idx === 0 ? 'Lower' : isLast ? 'Upper' : `Level ${idx + 1}`;
+                              const label = zClusters.clusters.length === 2
+                                ? (idx === 0 ? 'Lower' : 'Upper')
+                                : (idx === 0 ? 'Lower' : idx === 1 ? 'Middle' : 'Upper');
                               const margin = 15;
-                              const rangeMin = Math.round(cluster.min - margin);
-                              const rangeMax = isLast ? '' : String(Math.round(cluster.max + margin));
+                              const rangeMin = idx === 0
+                                ? Math.round(cluster.min - margin)
+                                : zClusters.splitPoints[idx - 1];
+                              const rangeMax = isLast ? '' : String(zClusters.splitPoints[idx]);
                               const isActive = formZMin === String(rangeMin) && formZMax === rangeMax;
                               return (
                                 <button

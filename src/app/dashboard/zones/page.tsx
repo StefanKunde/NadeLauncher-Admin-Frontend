@@ -19,6 +19,8 @@ import {
   HelpCircle,
   ChevronDown,
   ChevronUp,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { zonesApi } from '@/lib/api';
 import { MAP_COORDINATES, worldToRadar, radarToWorld } from '@/lib/map-coordinates';
@@ -56,6 +58,8 @@ export default function ZonesPage() {
   const isDragging = useRef(false);
   const dragStart = useRef({ x: 0, y: 0 });
   const panStart = useRef({ x: 0, y: 0 });
+
+  const [hideZones, setHideZones] = useState(false);
 
   // Drawing mode (drag-to-create)
   const [isDrawing, setIsDrawing] = useState(false);
@@ -741,6 +745,17 @@ export default function ZonesPage() {
         )}
 
         <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={() => setHideZones((h) => !h)}
+            className={`p-1.5 rounded-lg transition-colors ${
+              hideZones
+                ? 'text-[#f0a500] bg-[#f0a500]/15 border border-[#f0a500]/50'
+                : 'text-[#6b6b8a] hover:text-[#e8e8e8] border border-transparent'
+            }`}
+            title={hideZones ? 'Show zones on radar' : 'Hide zones on radar'}
+          >
+            {hideZones ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </button>
           <span className="text-xs text-[#6b6b8a]">{zones.length} zone{zones.length !== 1 ? 's' : ''}</span>
           <button
             onClick={handleBulkRename}
@@ -802,7 +817,7 @@ export default function ZonesPage() {
                 preserveAspectRatio="none"
               >
                 {/* Existing zones */}
-                {zones.map((zone) => {
+                {!hideZones && zones.map((zone) => {
                   const isSelected = zone.id === selectedZoneId;
                   const points = polygonToSvgPoints(zone.polygon);
                   return (

@@ -16,6 +16,8 @@ import {
   Activity,
   Database,
   Map,
+  BookOpen,
+  Trophy,
 } from 'lucide-react';
 import { useAuthStore } from '@/store/auth-store';
 
@@ -23,6 +25,8 @@ const NAV_ITEMS = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { href: '/dashboard/users', icon: Users, label: 'Users' },
   { href: '/dashboard/collections', icon: FolderOpen, label: 'Collections' },
+  { href: '/dashboard/courses', icon: BookOpen, label: 'Courses' },
+  { href: '/dashboard/achievements', icon: Trophy, label: 'Achievements' },
   { href: '/dashboard/sessions', icon: Activity, label: 'Sessions' },
   { href: '/dashboard/editor', icon: Server, label: 'Editor' },
   { href: '/dashboard/zones', icon: Map, label: 'Map Zones' },

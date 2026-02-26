@@ -14,6 +14,9 @@ import type {
   Session,
   PaginatedSessions,
   ExhaustedUser,
+  Course,
+  Achievement,
+  CourseDifficulty,
 } from './types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://nadelauncher-backend-a99d397c.apps.deploypilot.stefankunde.dev';
@@ -245,6 +248,47 @@ export const zonesApi = {
     api
       .post(`/api/zones/rename-collection/${collectionId}`)
       .then((r) => extract<{ updated: number; total: number; mapName: string }>(r)),
+};
+
+// Courses
+export const coursesApi = {
+  getAll: (map?: string) =>
+    api.get('/api/courses/admin/all', { params: { map } }).then((r) => extract<Course[]>(r)),
+  create: (data: {
+    name: string;
+    description?: string;
+    mapName: string;
+    difficulty: CourseDifficulty;
+    coverImage?: string;
+    sortOrder?: number;
+    isPublished?: boolean;
+  }) => api.post('/api/courses', data).then((r) => extract<Course>(r)),
+  update: (id: string, data: {
+    name?: string;
+    description?: string;
+    difficulty?: CourseDifficulty;
+    coverImage?: string;
+    sortOrder?: number;
+    isPublished?: boolean;
+  }) => api.put(`/api/courses/${id}`, data).then((r) => extract<Course>(r)),
+  delete: (id: string) => api.delete(`/api/courses/${id}`),
+  addCollection: (courseId: string, collectionId: string, sortOrder?: number) =>
+    api.post(`/api/courses/${courseId}/collections`, { collectionId, sortOrder }),
+  removeCollection: (courseId: string, collectionId: string) =>
+    api.delete(`/api/courses/${courseId}/collections/${collectionId}`),
+  reorderCollections: (courseId: string, orderedCollectionIds: string[]) =>
+    api.put(`/api/courses/${courseId}/collections/reorder`, { orderedCollectionIds }),
+};
+
+// Admin Achievements
+export const adminAchievementsApi = {
+  getAll: () =>
+    api.get('/admin/achievements').then((r) => unwrap<Achievement[]>(r.data)),
+  create: (data: Partial<Achievement>) =>
+    api.post('/admin/achievements', data).then((r) => unwrap<Achievement>(r.data)),
+  update: (id: string, data: Partial<Achievement>) =>
+    api.put(`/admin/achievements/${id}`, data).then((r) => unwrap<Achievement>(r.data)),
+  delete: (id: string) => api.delete(`/admin/achievements/${id}`),
 };
 
 export default api;

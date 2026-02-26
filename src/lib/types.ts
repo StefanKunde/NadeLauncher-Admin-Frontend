@@ -179,3 +179,44 @@ export interface MapZone {
   createdAt: string;
   updatedAt: string;
 }
+
+// Course types
+export type CourseDifficulty = 'beginner' | 'intermediate' | 'advanced' | 'expert';
+
+export interface CourseCollectionEntry {
+  id: string;
+  courseId: string;
+  collectionId: string;
+  sortOrder: number;
+  collection: LineupCollection;
+}
+
+export interface Course {
+  id: string;
+  mapName: string;
+  name: string;
+  description?: string;
+  difficulty: CourseDifficulty;
+  coverImage?: string;
+  sortOrder: number;
+  isPublished: boolean;
+  courseCollections: CourseCollectionEntry[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Achievement types
+export type AchievementTier = 'bronze' | 'silver' | 'gold' | 'diamond';
+
+export interface Achievement {
+  id: string;
+  key: string;
+  name: string;
+  description: string;
+  icon: string;
+  tier: AchievementTier;
+  mapName: string | null;
+  criteria: Record<string, unknown>;
+  sortOrder: number;
+  createdAt: string;
+}

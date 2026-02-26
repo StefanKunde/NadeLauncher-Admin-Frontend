@@ -13,6 +13,8 @@ export const metadata: Metadata = {
   description: 'Admin panel for NadePro CS2 Practice Tool',
 };
 
+const isDev = process.env.NEXT_PUBLIC_API_URL?.includes('localhost');
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -21,6 +23,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${inter.variable} antialiased`}>
+        {isDev && (
+          <div className="fixed top-0 left-0 z-[9999] bg-yellow-500 text-black text-[10px] font-bold px-1.5 py-0.5 rounded-br-md opacity-80">
+            DEV
+          </div>
+        )}
         {children}
         <Toaster
           position="bottom-right"

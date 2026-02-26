@@ -60,6 +60,8 @@ export interface Lineup {
   updatedAt: string;
 }
 
+export type CollectionDifficulty = 'easy' | 'medium' | 'hard';
+
 export interface LineupCollection {
   id: string;
   name: string;
@@ -67,6 +69,8 @@ export interface LineupCollection {
   mapName: string;
   coverImage?: string;
   isDefault: boolean;
+  isTraining?: boolean;
+  difficulty?: CollectionDifficulty | null;
   sortOrder: number;
   lineupCount: number;
   createdAt: string;

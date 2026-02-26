@@ -272,6 +272,8 @@ export const coursesApi = {
     isPublished?: boolean;
   }) => api.put(`/api/courses/${id}`, data).then((r) => extract<Course>(r)),
   delete: (id: string) => api.delete(`/api/courses/${id}`),
+  createAndAddCollection: (courseId: string, data: { name: string; description?: string; difficulty?: string }) =>
+    api.post(`/api/courses/${courseId}/collections/create`, data).then((r) => extract<{ collection: LineupCollection; courseCollection: unknown }>(r)),
   addCollection: (courseId: string, collectionId: string, sortOrder?: number) =>
     api.post(`/api/courses/${courseId}/collections`, { collectionId, sortOrder }),
   removeCollection: (courseId: string, collectionId: string) =>

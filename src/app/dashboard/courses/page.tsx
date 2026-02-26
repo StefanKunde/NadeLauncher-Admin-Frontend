@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   BookOpen,
@@ -16,19 +16,24 @@ import {
   ArrowDown,
   Eye,
   EyeOff,
+  Play,
+  Square,
+  Server,
+  Copy,
+  Check,
+  AlertCircle,
+  RefreshCw,
+  ExternalLink,
 } from 'lucide-react';
-import { coursesApi, collectionsApi } from '@/lib/api';
+import { coursesApi, collectionsApi, adminSessionsApi } from '@/lib/api';
 import { useAuthStore } from '@/store/auth-store';
 import { MAPS, MAP_COLORS } from '@/lib/constants';
-import type { Course, CourseDifficulty, LineupCollection } from '@/lib/types';
+import type { Course, CollectionDifficulty, LineupCollection, Session } from '@/lib/types';
 import toast from 'react-hot-toast';
 
 interface CourseFormData {
   name: string;
   description: string;
-  mapName: string;
-  difficulty: CourseDifficulty;
-  coverImage: string;
   sortOrder: number;
   isPublished: boolean;
 }
@@ -36,25 +41,39 @@ interface CourseFormData {
 const initialFormData: CourseFormData = {
   name: '',
   description: '',
-  mapName: 'de_mirage',
-  difficulty: 'beginner',
-  coverImage: '',
   sortOrder: 0,
   isPublished: false,
 };
 
-const DIFFICULTY_COLORS: Record<CourseDifficulty, string> = {
-  beginner: '#22c55e',
-  intermediate: '#06b6d4',
-  advanced: '#f59e0b',
-  expert: '#ef4444',
+const COLL_DIFFICULTY_COLORS: Record<CollectionDifficulty, string> = {
+  easy: '#22c55e',
+  medium: '#f59e0b',
+  hard: '#ef4444',
 };
 
-const DIFFICULTY_LABELS: Record<CourseDifficulty, string> = {
-  beginner: 'Beginner',
-  intermediate: 'Intermediate',
-  advanced: 'Advanced',
-  expert: 'Expert',
+const COLL_DIFFICULTY_LABELS: Record<CollectionDifficulty, string> = {
+  easy: 'Easy',
+  medium: 'Medium',
+  hard: 'Hard',
+};
+
+const getStatusDisplay = (status: Session['status']) => {
+  switch (status) {
+    case 'queued':
+      return { label: 'In Queue', color: '#6366f1', icon: RefreshCw };
+    case 'pending':
+      return { label: 'Pending', color: '#f0a500', icon: Loader2 };
+    case 'provisioning':
+      return { label: 'Provisioning...', color: '#f0a500', icon: Loader2 };
+    case 'ready':
+      return { label: 'Ready', color: '#22c55e', icon: Server };
+    case 'active':
+      return { label: 'Active', color: '#22c55e', icon: Server };
+    case 'failed':
+      return { label: 'Failed', color: '#ef4444', icon: AlertCircle };
+    default:
+      return { label: status, color: '#6b6b8a', icon: Server };
+  }
 };
 
 export default function CoursesPage() {
@@ -77,11 +96,31 @@ export default function CoursesPage() {
   const [removingCollectionId, setRemovingCollectionId] = useState<string | null>(null);
   const [reordering, setReordering] = useState(false);
 
+  // Create new collection inline form
+  const [showCreateCollection, setShowCreateCollection] = useState(false);
+  const [newCollName, setNewCollName] = useState('');
+  const [newCollDifficulty, setNewCollDifficulty] = useState<CollectionDifficulty>('easy');
+  const [creatingCollection, setCreatingCollection] = useState(false);
+
+  // Editor session state
+  const [activeSession, setActiveSession] = useState<Session | null>(null);
+  const [startingEditor, setStartingEditor] = useState<string | null>(null);
+  const [endingSession, setEndingSession] = useState(false);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+
   const { user } = useAuthStore();
 
   useEffect(() => {
     loadCourses();
+    loadActiveSession();
   }, []);
+
+  // Poll for session updates when active
+  useEffect(() => {
+    if (!activeSession?.isActive) return;
+    const interval = setInterval(loadActiveSession, 5000);
+    return () => clearInterval(interval);
+  }, [activeSession?.isActive]);
 
   const loadCourses = async () => {
     try {
@@ -96,10 +135,13 @@ export default function CoursesPage() {
     }
   };
 
-  const openCreateModal = () => {
-    setEditingId(null);
-    setFormData(initialFormData);
-    setShowModal(true);
+  const loadActiveSession = async () => {
+    try {
+      const data = await adminSessionsApi.getActive();
+      setActiveSession(data);
+    } catch {
+      // no active session
+    }
   };
 
   const openEditModal = (course: Course) => {
@@ -107,9 +149,6 @@ export default function CoursesPage() {
     setFormData({
       name: course.name,
       description: course.description || '',
-      mapName: course.mapName,
-      difficulty: course.difficulty,
-      coverImage: course.coverImage || '',
       sortOrder: course.sortOrder,
       isPublished: course.isPublished,
     });
@@ -133,20 +172,16 @@ export default function CoursesPage() {
     try {
       const payload = {
         ...formData,
-        coverImage: formData.coverImage || undefined,
         description: formData.description || undefined,
       };
       if (editingId) {
         await coursesApi.update(editingId, payload);
         toast.success('Course updated');
-      } else {
-        await coursesApi.create(payload);
-        toast.success('Course created');
       }
       await loadCourses();
       closeModal();
-    } catch (error) {
-      toast.error(editingId ? 'Failed to update course' : 'Failed to create course');
+    } catch {
+      toast.error('Failed to update course');
     } finally {
       setSaving(false);
     }
@@ -165,7 +200,7 @@ export default function CoursesPage() {
       setCourses((prev) => prev.filter((c) => c.id !== id));
       if (expandedId === id) setExpandedId(null);
       toast.success('Course deleted');
-    } catch (error) {
+    } catch {
       toast.error('Failed to delete course');
     } finally {
       setDeletingId(null);
@@ -181,23 +216,26 @@ export default function CoursesPage() {
         ),
       );
       toast.success(course.isPublished ? 'Course unpublished' : 'Course published');
-    } catch (error) {
+    } catch {
       toast.error('Failed to toggle publish status');
     }
   };
 
-  const toggleExpand = async (courseId: string) => {
+  const toggleExpand = (courseId: string) => {
     if (expandedId === courseId) {
       setExpandedId(null);
       setShowAddCollection(false);
+      setShowCreateCollection(false);
       return;
     }
     setExpandedId(courseId);
     setShowAddCollection(false);
+    setShowCreateCollection(false);
   };
 
   const openAddCollection = async (course: Course) => {
     setShowAddCollection(true);
+    setShowCreateCollection(false);
     setLoadingCollections(true);
     try {
       const allCollections = await collectionsApi.getAll(course.mapName);
@@ -238,7 +276,7 @@ export default function CoursesPage() {
       await coursesApi.removeCollection(courseId, collectionId);
       await loadCourses();
       toast.success('Collection removed from course');
-    } catch (error) {
+    } catch {
       toast.error('Failed to remove collection');
     } finally {
       setRemovingCollectionId(null);
@@ -273,6 +311,75 @@ export default function CoursesPage() {
     }
   };
 
+  // Create new collection for a course
+  const handleCreateCollection = async (courseId: string) => {
+    if (!newCollName.trim()) {
+      toast.error('Collection name is required');
+      return;
+    }
+
+    setCreatingCollection(true);
+    try {
+      await coursesApi.createAndAddCollection(courseId, {
+        name: newCollName.trim(),
+        difficulty: newCollDifficulty,
+      });
+      await loadCourses();
+      setNewCollName('');
+      setNewCollDifficulty('easy');
+      setShowCreateCollection(false);
+      toast.success('Collection created and added');
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Failed to create collection');
+    } finally {
+      setCreatingCollection(false);
+    }
+  };
+
+  // Start editor for a collection
+  const handleStartEditor = async (mapName: string, collectionId: string) => {
+    if (activeSession?.isActive && activeSession.editingCollectionId !== collectionId) {
+      if (!confirm('You already have an active editor session. End it and start a new one?')) return;
+      try {
+        await adminSessionsApi.end(activeSession.id);
+      } catch {
+        toast.error('Failed to end current session');
+        return;
+      }
+    }
+
+    setStartingEditor(collectionId);
+    try {
+      const newSession = await adminSessionsApi.createEditor({ mapName, collectionId });
+      setActiveSession(newSession);
+      toast.success('Editor session started');
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Failed to start editor session');
+    } finally {
+      setStartingEditor(null);
+    }
+  };
+
+  const handleEndSession = async () => {
+    if (!activeSession) return;
+    setEndingSession(true);
+    try {
+      await adminSessionsApi.end(activeSession.id);
+      setActiveSession(null);
+      toast.success('Session ended');
+    } catch {
+      toast.error('Failed to end session');
+    } finally {
+      setEndingSession(false);
+    }
+  };
+
+  const copyToClipboard = useCallback((text: string, field: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedField(field);
+    setTimeout(() => setCopiedField(null), 2000);
+  }, []);
+
   const filteredCourses = courses.filter((course) => {
     if (filterMap !== 'all' && course.mapName !== filterMap) return false;
     if (searchText.trim()) {
@@ -306,22 +413,16 @@ export default function CoursesPage() {
     <div>
       {/* Page Header */}
       <div className="mb-8">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-[#f0a500]/10 border border-[#f0a500]/20">
-              <BookOpen className="w-6 h-6 text-[#f0a500]" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold text-gradient-gold">Courses</h1>
-            </div>
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 rounded-xl bg-[#f0a500]/10 border border-[#f0a500]/20">
+            <BookOpen className="w-6 h-6 text-[#f0a500]" />
           </div>
-          <button onClick={openCreateModal} className="btn-primary">
-            <Plus className="h-4 w-4" />
-            New Course
-          </button>
+          <div>
+            <h1 className="text-3xl font-bold text-gradient-gold">Courses</h1>
+          </div>
         </div>
         <p className="text-[#6b6b8a] text-lg ml-[52px] mt-2">
-          Manage map courses and collection sequences
+          Manage map courses, add collections, and edit lineups in-game
         </p>
       </div>
 
@@ -375,7 +476,7 @@ export default function CoursesPage() {
             No courses found
           </p>
           <p className="text-[#6b6b8a]">
-            Create your first course to get started
+            Courses will be auto-created for each map on first startup
           </p>
         </motion.div>
       ) : (
@@ -400,14 +501,10 @@ export default function CoursesPage() {
                   <h2 className="text-lg font-semibold text-[#e8e8e8]">
                     {map.displayName}
                   </h2>
-                  <span className="text-sm text-[#6b6b8a]">
-                    {mapCourses.length} course{mapCourses.length !== 1 ? 's' : ''}
-                  </span>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="space-y-4">
                   {mapCourses.map((course) => {
-                    const diffColor = DIFFICULTY_COLORS[course.difficulty];
                     const collectionCount = course.courseCollections?.length ?? 0;
                     const isExpanded = expandedId === course.id;
 
@@ -416,7 +513,7 @@ export default function CoursesPage() {
                         key={course.id}
                         className={`glass rounded-xl border transition-all duration-200 ${
                           isExpanded
-                            ? 'col-span-full border-[#f0a500]/30'
+                            ? 'border-[#f0a500]/30'
                             : 'border-transparent hover:border-[#2a2a3e]'
                         }`}
                         layout
@@ -450,21 +547,11 @@ export default function CoursesPage() {
                                 )}
                               </div>
                             </button>
-                            <span
-                              className="flex-shrink-0 text-[10px] font-bold px-2.5 py-1 rounded-full uppercase"
-                              style={{
-                                backgroundColor: `${diffColor}15`,
-                                color: diffColor,
-                              }}
-                            >
-                              {DIFFICULTY_LABELS[course.difficulty]}
-                            </span>
                           </div>
 
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-3 text-sm text-[#6b6b8a]">
                               <span>{collectionCount} collection{collectionCount !== 1 ? 's' : ''}</span>
-                              <span>Order: {course.sortOrder}</span>
                             </div>
 
                             <div className="flex items-center gap-2">
@@ -506,7 +593,7 @@ export default function CoursesPage() {
                           </div>
                         </div>
 
-                        {/* Expanded: Collection list */}
+                        {/* Expanded: Collection list + editor */}
                         <AnimatePresence>
                           {isExpanded && (
                             <motion.div
@@ -523,68 +610,322 @@ export default function CoursesPage() {
                                 ) : (
                                   [...(course.courseCollections ?? [])]
                                     .sort((a, b) => a.sortOrder - b.sortOrder)
-                                    .map((cc, idx, arr) => (
-                                      <div
-                                        key={cc.id}
-                                        className="flex items-center gap-3 px-3 py-2 rounded-lg bg-[#12121a] border border-[#2a2a3e]"
-                                      >
-                                        <span className="text-xs font-bold text-[#6b6b8a] w-6 text-center">
-                                          {idx + 1}
-                                        </span>
-                                        <span className="flex-1 text-sm text-[#e8e8e8] truncate">
-                                          {cc.collection?.name ?? cc.collectionId}
-                                        </span>
-                                        <div className="flex items-center gap-1">
-                                          <button
-                                            onClick={() =>
-                                              handleMoveCollection(course, cc.collectionId, 'up')
-                                            }
-                                            disabled={idx === 0 || reordering}
-                                            className="p-1 rounded text-[#6b6b8a] hover:text-[#e8e8e8] disabled:opacity-30 transition-colors"
-                                          >
-                                            <ArrowUp className="h-3.5 w-3.5" />
-                                          </button>
-                                          <button
-                                            onClick={() =>
-                                              handleMoveCollection(course, cc.collectionId, 'down')
-                                            }
-                                            disabled={idx === arr.length - 1 || reordering}
-                                            className="p-1 rounded text-[#6b6b8a] hover:text-[#e8e8e8] disabled:opacity-30 transition-colors"
-                                          >
-                                            <ArrowDown className="h-3.5 w-3.5" />
-                                          </button>
-                                          <button
-                                            onClick={() =>
-                                              handleRemoveCollection(course.id, cc.collectionId)
-                                            }
-                                            disabled={removingCollectionId === cc.collectionId}
-                                            className="p-1 rounded text-[#6b6b8a] hover:text-[#ff4444] disabled:opacity-50 transition-colors ml-1"
-                                          >
-                                            {removingCollectionId === cc.collectionId ? (
-                                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                            ) : (
-                                              <X className="h-3.5 w-3.5" />
+                                    .map((cc, idx, arr) => {
+                                      const diff = cc.collection?.difficulty as CollectionDifficulty | null | undefined;
+                                      const diffColor = diff ? COLL_DIFFICULTY_COLORS[diff] : null;
+                                      const isActiveForThis = activeSession?.isActive && activeSession.editingCollectionId === cc.collectionId;
+
+                                      return (
+                                        <div key={cc.id}>
+                                          <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-[#12121a] border border-[#2a2a3e]">
+                                            <span className="text-xs font-bold text-[#6b6b8a] w-6 text-center">
+                                              {idx + 1}
+                                            </span>
+                                            <span className="flex-1 text-sm text-[#e8e8e8] truncate">
+                                              {cc.collection?.name ?? cc.collectionId}
+                                            </span>
+                                            {diff && diffColor && (
+                                              <span
+                                                className="text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase shrink-0"
+                                                style={{
+                                                  backgroundColor: `${diffColor}15`,
+                                                  color: diffColor,
+                                                }}
+                                              >
+                                                {COLL_DIFFICULTY_LABELS[diff]}
+                                              </span>
                                             )}
-                                          </button>
+                                            <span className="text-[10px] text-[#6b6b8a] shrink-0">
+                                              {cc.collection?.lineupCount ?? 0} lineups
+                                            </span>
+                                            <div className="flex items-center gap-1">
+                                              <button
+                                                onClick={() =>
+                                                  handleMoveCollection(course, cc.collectionId, 'up')
+                                                }
+                                                disabled={idx === 0 || reordering}
+                                                className="p-1 rounded text-[#6b6b8a] hover:text-[#e8e8e8] disabled:opacity-30 transition-colors"
+                                              >
+                                                <ArrowUp className="h-3.5 w-3.5" />
+                                              </button>
+                                              <button
+                                                onClick={() =>
+                                                  handleMoveCollection(course, cc.collectionId, 'down')
+                                                }
+                                                disabled={idx === arr.length - 1 || reordering}
+                                                className="p-1 rounded text-[#6b6b8a] hover:text-[#e8e8e8] disabled:opacity-30 transition-colors"
+                                              >
+                                                <ArrowDown className="h-3.5 w-3.5" />
+                                              </button>
+                                              {/* Start Editor button */}
+                                              <button
+                                                onClick={() =>
+                                                  handleStartEditor(course.mapName, cc.collectionId)
+                                                }
+                                                disabled={startingEditor === cc.collectionId || isActiveForThis}
+                                                className={`p-1 rounded transition-colors ml-1 ${
+                                                  isActiveForThis
+                                                    ? 'text-[#22c55e]'
+                                                    : 'text-[#6b6b8a] hover:text-[#f0a500]'
+                                                } disabled:opacity-50`}
+                                                title={isActiveForThis ? 'Editor active' : 'Start Editor'}
+                                              >
+                                                {startingEditor === cc.collectionId ? (
+                                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                                ) : (
+                                                  <Play className="h-3.5 w-3.5" />
+                                                )}
+                                              </button>
+                                              <button
+                                                onClick={() =>
+                                                  handleRemoveCollection(course.id, cc.collectionId)
+                                                }
+                                                disabled={removingCollectionId === cc.collectionId}
+                                                className="p-1 rounded text-[#6b6b8a] hover:text-[#ff4444] disabled:opacity-50 transition-colors ml-1"
+                                              >
+                                                {removingCollectionId === cc.collectionId ? (
+                                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                                ) : (
+                                                  <X className="h-3.5 w-3.5" />
+                                                )}
+                                              </button>
+                                            </div>
+                                          </div>
+
+                                          {/* Active session panel for this collection */}
+                                          {isActiveForThis && activeSession && (
+                                            <div className="mt-1 ml-9 p-3 rounded-lg border border-[#22c55e]/30 bg-[#22c55e]/5">
+                                              <div className="flex items-center justify-between mb-3">
+                                                <span className="text-xs font-medium text-[#e8e8e8]">Editor Session</span>
+                                                {(() => {
+                                                  const statusInfo = getStatusDisplay(activeSession.status);
+                                                  const Icon = statusInfo.icon;
+                                                  return (
+                                                    <span
+                                                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium"
+                                                      style={{
+                                                        backgroundColor: `${statusInfo.color}15`,
+                                                        color: statusInfo.color,
+                                                      }}
+                                                    >
+                                                      <Icon
+                                                        className={`h-3 w-3 ${
+                                                          activeSession.status === 'provisioning' || activeSession.status === 'pending'
+                                                            ? 'animate-spin'
+                                                            : ''
+                                                        }`}
+                                                      />
+                                                      {statusInfo.label}
+                                                    </span>
+                                                  );
+                                                })()}
+                                              </div>
+
+                                              {activeSession.provisioningError && (
+                                                <div className="mb-2 p-2 rounded-lg bg-[#ef4444]/10 border border-[#ef4444]/30">
+                                                  <div className="flex items-start gap-1.5 text-xs text-[#ef4444]">
+                                                    <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                                                    <span>{activeSession.provisioningError}</span>
+                                                  </div>
+                                                </div>
+                                              )}
+
+                                              {activeSession.queuePosition != null && activeSession.queuePosition > 0 && (
+                                                <div className="mb-2 text-center text-sm text-[#6366f1]">
+                                                  Queue position: #{activeSession.queuePosition}
+                                                </div>
+                                              )}
+
+                                              {(activeSession.status === 'ready' || activeSession.status === 'active') && activeSession.serverIp && (
+                                                <div className="space-y-2">
+                                                  <div className="flex items-center gap-2">
+                                                    <code className="flex-1 bg-[#0a0a12] rounded px-2 py-1 text-xs text-[#e8e8e8] font-mono">
+                                                      {activeSession.serverIp}:{activeSession.serverPort || 27015}
+                                                    </code>
+                                                    <button
+                                                      onClick={() =>
+                                                        copyToClipboard(
+                                                          `${activeSession.serverIp}:${activeSession.serverPort || 27015}`,
+                                                          'address'
+                                                        )
+                                                      }
+                                                      className="p-1 rounded text-[#6b6b8a] hover:text-[#f0a500] transition-colors"
+                                                    >
+                                                      {copiedField === 'address' ? (
+                                                        <Check className="h-3.5 w-3.5 text-[#22c55e]" />
+                                                      ) : (
+                                                        <Copy className="h-3.5 w-3.5" />
+                                                      )}
+                                                    </button>
+                                                  </div>
+
+                                                  {activeSession.serverPassword && (
+                                                    <div className="flex items-center gap-2">
+                                                      <span className="text-[10px] text-[#6b6b8a] w-10">Pass:</span>
+                                                      <code className="flex-1 bg-[#0a0a12] rounded px-2 py-1 text-xs text-[#e8e8e8] font-mono">
+                                                        {activeSession.serverPassword}
+                                                      </code>
+                                                      <button
+                                                        onClick={() => copyToClipboard(activeSession.serverPassword!, 'password')}
+                                                        className="p-1 rounded text-[#6b6b8a] hover:text-[#f0a500] transition-colors"
+                                                      >
+                                                        {copiedField === 'password' ? (
+                                                          <Check className="h-3.5 w-3.5 text-[#22c55e]" />
+                                                        ) : (
+                                                          <Copy className="h-3.5 w-3.5" />
+                                                        )}
+                                                      </button>
+                                                    </div>
+                                                  )}
+
+                                                  <div className="flex items-center gap-2">
+                                                    <button
+                                                      onClick={() =>
+                                                        copyToClipboard(
+                                                          `connect ${activeSession.serverIp}:${activeSession.serverPort || 27015}${
+                                                            activeSession.serverPassword ? `; password ${activeSession.serverPassword}` : ''
+                                                          }`,
+                                                          'connect'
+                                                        )
+                                                      }
+                                                      className="flex items-center gap-1.5 px-2 py-1 rounded bg-[#1a1a2e] border border-[#2a2a3e] text-[10px] text-[#6b6b8a] hover:text-[#f0a500] transition-colors"
+                                                    >
+                                                      {copiedField === 'connect' ? (
+                                                        <Check className="h-3 w-3 text-[#22c55e]" />
+                                                      ) : (
+                                                        <Copy className="h-3 w-3" />
+                                                      )}
+                                                      Copy connect cmd
+                                                    </button>
+                                                    <a
+                                                      href={`steam://run/730//+connect%20${activeSession.serverIp}:${activeSession.serverPort || 27015}%20+password%20${activeSession.serverPassword || ''}`}
+                                                      className="flex items-center gap-1.5 px-2 py-1 rounded bg-[#f0a500]/10 border border-[#f0a500]/30 text-[10px] text-[#f0a500] hover:bg-[#f0a500]/20 transition-colors"
+                                                    >
+                                                      <ExternalLink className="h-3 w-3" />
+                                                      Steam Connect
+                                                    </a>
+                                                  </div>
+                                                </div>
+                                              )}
+
+                                              <button
+                                                onClick={handleEndSession}
+                                                disabled={endingSession}
+                                                className="mt-3 w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#ff4444]/30 bg-[#ff4444]/5 text-xs text-[#ff4444] hover:bg-[#ff4444]/10 transition-colors disabled:opacity-50"
+                                              >
+                                                {endingSession ? (
+                                                  <>
+                                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                                    Ending...
+                                                  </>
+                                                ) : (
+                                                  <>
+                                                    <Square className="h-3 w-3" />
+                                                    End Session
+                                                  </>
+                                                )}
+                                              </button>
+                                            </div>
+                                          )}
                                         </div>
-                                      </div>
-                                    ))
+                                      );
+                                    })
                                 )}
 
-                                {/* Add collection */}
-                                {!showAddCollection ? (
-                                  <button
-                                    onClick={() => openAddCollection(course)}
-                                    className="flex items-center gap-2 w-full px-3 py-2 rounded-lg border border-dashed border-[#2a2a3e] text-sm text-[#6b6b8a] hover:border-[#f0a500]/40 hover:text-[#f0a500] transition-all"
-                                  >
-                                    <Plus className="h-4 w-4" />
-                                    Add Collection
-                                  </button>
-                                ) : (
+                                {/* Create new collection / Add existing */}
+                                {!showCreateCollection && !showAddCollection && (
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={() => {
+                                        setShowCreateCollection(true);
+                                        setShowAddCollection(false);
+                                      }}
+                                      className="flex items-center gap-2 flex-1 px-3 py-2 rounded-lg border border-dashed border-[#2a2a3e] text-sm text-[#6b6b8a] hover:border-[#f0a500]/40 hover:text-[#f0a500] transition-all"
+                                    >
+                                      <Plus className="h-4 w-4" />
+                                      Create New Collection
+                                    </button>
+                                    <button
+                                      onClick={() => openAddCollection(course)}
+                                      className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-[#2a2a3e] text-sm text-[#6b6b8a] hover:border-[#6b6b8a]/60 hover:text-[#e8e8e8] transition-all"
+                                    >
+                                      <Plus className="h-4 w-4" />
+                                      Add Existing
+                                    </button>
+                                  </div>
+                                )}
+
+                                {/* Create new collection inline form */}
+                                {showCreateCollection && (
                                   <div className="p-3 rounded-lg border border-[#f0a500]/30 bg-[#f0a500]/5">
+                                    <div className="flex items-center justify-between mb-3">
+                                      <span className="text-sm font-medium text-[#e8e8e8]">
+                                        Create New Collection
+                                      </span>
+                                      <button
+                                        onClick={() => setShowCreateCollection(false)}
+                                        className="text-[#6b6b8a] hover:text-[#e8e8e8]"
+                                      >
+                                        <X className="h-4 w-4" />
+                                      </button>
+                                    </div>
+                                    <div className="flex items-end gap-3">
+                                      <div className="flex-1">
+                                        <label className="block text-[10px] font-medium text-[#6b6b8a] mb-1">
+                                          Name
+                                        </label>
+                                        <input
+                                          type="text"
+                                          value={newCollName}
+                                          onChange={(e) => setNewCollName(e.target.value)}
+                                          placeholder="e.g., A-Site Smokes"
+                                          className="w-full bg-[#0a0a12] border border-[#2a2a3e] rounded-lg text-sm text-[#e8e8e8] placeholder-[#6b6b8a]/50 px-3 py-2 focus:outline-none focus:border-[#f0a500]/40"
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Enter') handleCreateCollection(course.id);
+                                          }}
+                                        />
+                                      </div>
+                                      <div className="w-28">
+                                        <label className="block text-[10px] font-medium text-[#6b6b8a] mb-1">
+                                          Difficulty
+                                        </label>
+                                        <div className="relative">
+                                          <select
+                                            value={newCollDifficulty}
+                                            onChange={(e) =>
+                                              setNewCollDifficulty(e.target.value as CollectionDifficulty)
+                                            }
+                                            className="w-full appearance-none bg-[#0a0a12] border border-[#2a2a3e] rounded-lg text-sm text-[#e8e8e8] cursor-pointer px-3 py-2 pr-8 focus:outline-none focus:border-[#f0a500]/40"
+                                          >
+                                            <option value="easy">Easy</option>
+                                            <option value="medium">Medium</option>
+                                            <option value="hard">Hard</option>
+                                          </select>
+                                          <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#6b6b8a] pointer-events-none" />
+                                        </div>
+                                      </div>
+                                      <button
+                                        onClick={() => handleCreateCollection(course.id)}
+                                        disabled={creatingCollection || !newCollName.trim()}
+                                        className="px-4 py-2 rounded-lg bg-[#f0a500] text-[#0a0a12] text-sm font-bold hover:bg-[#d4900a] disabled:opacity-50 transition-all flex items-center gap-1.5"
+                                      >
+                                        {creatingCollection ? (
+                                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                        ) : (
+                                          <Plus className="h-3.5 w-3.5" />
+                                        )}
+                                        Create
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Add existing collection picker */}
+                                {showAddCollection && (
+                                  <div className="p-3 rounded-lg border border-[#2a2a3e] bg-[#0a0a12]">
                                     <div className="flex items-center justify-between mb-2">
                                       <span className="text-sm font-medium text-[#e8e8e8]">
-                                        Add Collection
+                                        Add Existing Collection
                                       </span>
                                       <button
                                         onClick={() => setShowAddCollection(false)}
@@ -641,7 +982,7 @@ export default function CoursesPage() {
         </div>
       )}
 
-      {/* Create/Edit Modal */}
+      {/* Edit Modal */}
       <AnimatePresence>
         {showModal && (
           <motion.div
@@ -659,7 +1000,7 @@ export default function CoursesPage() {
               onClick={(e) => e.stopPropagation()}
             >
               <h2 className="text-xl font-bold text-[#e8e8e8] mb-6">
-                {editingId ? 'Edit Course' : 'New Course'}
+                Edit Course
               </h2>
 
               <form onSubmit={handleSubmit} className="space-y-4">
@@ -672,7 +1013,7 @@ export default function CoursesPage() {
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     className="w-full"
-                    placeholder="e.g., Dust2 Essentials"
+                    placeholder="e.g., Dust II Training"
                   />
                 </div>
 
@@ -689,56 +1030,6 @@ export default function CoursesPage() {
                     rows={3}
                     placeholder="Optional description..."
                   />
-                </div>
-
-                <div className="flex gap-4">
-                  <div className="flex-1">
-                    <label className="block text-sm font-medium text-[#6b6b8a] mb-2">
-                      Map
-                    </label>
-                    <div className="relative">
-                      <select
-                        value={formData.mapName}
-                        onChange={(e) =>
-                          setFormData({ ...formData, mapName: e.target.value })
-                        }
-                        className="w-full appearance-none cursor-pointer pr-10"
-                        disabled={!!editingId}
-                      >
-                        {MAPS.map((m) => (
-                          <option key={m.name} value={m.name}>
-                            {m.displayName}
-                          </option>
-                        ))}
-                      </select>
-                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6b6b8a] pointer-events-none" />
-                    </div>
-                  </div>
-
-                  <div className="flex-1">
-                    <label className="block text-sm font-medium text-[#6b6b8a] mb-2">
-                      Difficulty
-                    </label>
-                    <div className="relative">
-                      <select
-                        value={formData.difficulty}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            difficulty: e.target.value as CourseDifficulty,
-                          })
-                        }
-                        className="w-full appearance-none cursor-pointer pr-10"
-                      >
-                        {Object.entries(DIFFICULTY_LABELS).map(([val, label]) => (
-                          <option key={val} value={val}>
-                            {label}
-                          </option>
-                        ))}
-                      </select>
-                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6b6b8a] pointer-events-none" />
-                    </div>
-                  </div>
                 </div>
 
                 <div className="flex items-center gap-4">
@@ -797,10 +1088,8 @@ export default function CoursesPage() {
                         <Loader2 className="h-4 w-4 animate-spin" />
                         Saving...
                       </>
-                    ) : editingId ? (
-                      'Update'
                     ) : (
-                      'Create'
+                      'Update'
                     )}
                   </button>
                 </div>

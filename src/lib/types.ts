@@ -71,6 +71,7 @@ export interface LineupCollection {
   isDefault: boolean;
   isTraining?: boolean;
   difficulty?: CollectionDifficulty | null;
+  parentCollectionId?: string | null;
   sortOrder: number;
   lineupCount: number;
   createdAt: string;

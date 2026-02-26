@@ -112,6 +112,7 @@ export default function CoursesPage() {
   const [editCollName, setEditCollName] = useState('');
   const [editCollDifficulty, setEditCollDifficulty] = useState<CollectionDifficulty | ''>('');
   const [savingCollection, setSavingCollection] = useState(false);
+  const [syncingCollectionId, setSyncingCollectionId] = useState<string | null>(null);
 
   // Editor session state
   const [activeSession, setActiveSession] = useState<Session | null>(null);
@@ -365,6 +366,19 @@ export default function CoursesPage() {
       toast.error(error?.response?.data?.message || 'Failed to create collection');
     } finally {
       setCreatingCollection(false);
+    }
+  };
+
+  const handleSyncCollection = async (collectionId: string) => {
+    setSyncingCollectionId(collectionId);
+    try {
+      const result = await collectionsApi.syncFromParent(collectionId);
+      await loadCourses();
+      toast.success(`Synced: +${result.added} added, -${result.removed} removed`);
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Failed to sync collection');
+    } finally {
+      setSyncingCollectionId(null);
     }
   };
 
@@ -772,6 +786,20 @@ export default function CoursesPage() {
                                                 {cc.collection?.lineupCount ?? 0} lineups
                                               </span>
                                               <div className="flex items-center gap-1">
+                                                {cc.collection?.parentCollectionId && (
+                                                  <button
+                                                    onClick={() => handleSyncCollection(cc.collectionId)}
+                                                    disabled={syncingCollectionId === cc.collectionId}
+                                                    className="p-1 rounded text-[#6b6b8a] hover:text-[#6366f1] disabled:opacity-50 transition-colors"
+                                                    title="Sync from parent collection"
+                                                  >
+                                                    {syncingCollectionId === cc.collectionId ? (
+                                                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                                    ) : (
+                                                      <RefreshCw className="h-3.5 w-3.5" />
+                                                    )}
+                                                  </button>
+                                                )}
                                                 <button
                                                   onClick={() => startEditCollection(cc)}
                                                   className="p-1 rounded text-[#6b6b8a] hover:text-[#f0a500] transition-colors"

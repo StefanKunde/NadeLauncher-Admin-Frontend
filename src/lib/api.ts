@@ -108,6 +108,8 @@ export const collectionsApi = {
     api.post(`/api/collections/${collectionId}/lineups`, { lineupId }),
   removeLineup: (collectionId: string, lineupId: string) =>
     api.delete(`/api/collections/${collectionId}/lineups/${lineupId}`),
+  syncFromParent: (collectionId: string) =>
+    api.post(`/api/collections/${collectionId}/sync-from-parent`).then((r) => extract<{ added: number; removed: number }>(r)),
 };
 
 // Lineups

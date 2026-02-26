@@ -103,6 +103,12 @@ export default function CoursesPage() {
   const [newCollSourceId, setNewCollSourceId] = useState<string>('');
   const [creatingCollection, setCreatingCollection] = useState(false);
 
+  // Inline collection edit state
+  const [editingCollectionId, setEditingCollectionId] = useState<string | null>(null);
+  const [editCollName, setEditCollName] = useState('');
+  const [editCollDifficulty, setEditCollDifficulty] = useState<CollectionDifficulty | ''>('');
+  const [savingCollection, setSavingCollection] = useState(false);
+
   // Editor session state
   const [activeSession, setActiveSession] = useState<Session | null>(null);
   const [startingEditor, setStartingEditor] = useState<string | null>(null);
@@ -340,6 +346,39 @@ export default function CoursesPage() {
       toast.error(error?.response?.data?.message || 'Failed to create collection');
     } finally {
       setCreatingCollection(false);
+    }
+  };
+
+  const startEditCollection = (cc: { collectionId: string; collection?: { name?: string; difficulty?: string | null } }) => {
+    setEditingCollectionId(cc.collectionId);
+    setEditCollName(cc.collection?.name ?? '');
+    setEditCollDifficulty((cc.collection?.difficulty as CollectionDifficulty) || '');
+  };
+
+  const cancelEditCollection = () => {
+    setEditingCollectionId(null);
+    setEditCollName('');
+    setEditCollDifficulty('');
+  };
+
+  const handleSaveCollection = async (collectionId: string) => {
+    if (!editCollName.trim()) {
+      toast.error('Name is required');
+      return;
+    }
+    setSavingCollection(true);
+    try {
+      await collectionsApi.update(collectionId, {
+        name: editCollName.trim(),
+        difficulty: editCollDifficulty || undefined,
+      });
+      await loadCourses();
+      cancelEditCollection();
+      toast.success('Collection updated');
+    } catch {
+      toast.error('Failed to update collection');
+    } finally {
+      setSavingCollection(false);
     }
   };
 
@@ -622,82 +661,150 @@ export default function CoursesPage() {
                                       const diffColor = diff ? COLL_DIFFICULTY_COLORS[diff] : null;
                                       const isActiveForThis = activeSession?.isActive && activeSession.editingCollectionId === cc.collectionId;
 
+                                      const isEditing = editingCollectionId === cc.collectionId;
+
                                       return (
                                         <div key={cc.id}>
-                                          <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-[#12121a] border border-[#2a2a3e]">
-                                            <span className="text-xs font-bold text-[#6b6b8a] w-6 text-center">
-                                              {idx + 1}
-                                            </span>
-                                            <span className="flex-1 text-sm text-[#e8e8e8] truncate">
-                                              {cc.collection?.name ?? cc.collectionId}
-                                            </span>
-                                            {diff && diffColor && (
-                                              <span
-                                                className="text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase shrink-0"
-                                                style={{
-                                                  backgroundColor: `${diffColor}15`,
-                                                  color: diffColor,
-                                                }}
-                                              >
-                                                {COLL_DIFFICULTY_LABELS[diff]}
+                                          {isEditing ? (
+                                            /* Inline edit row */
+                                            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#12121a] border border-[#f0a500]/30">
+                                              <span className="text-xs font-bold text-[#6b6b8a] w-6 text-center">
+                                                {idx + 1}
                                               </span>
-                                            )}
-                                            <span className="text-[10px] text-[#6b6b8a] shrink-0">
-                                              {cc.collection?.lineupCount ?? 0} lineups
-                                            </span>
-                                            <div className="flex items-center gap-1">
+                                              <input
+                                                type="text"
+                                                value={editCollName}
+                                                onChange={(e) => setEditCollName(e.target.value)}
+                                                className="flex-1 bg-[#0a0a12] border border-[#2a2a3e] rounded-lg text-sm text-[#e8e8e8] px-2 py-1 focus:outline-none focus:border-[#f0a500]/40"
+                                                onKeyDown={(e) => {
+                                                  if (e.key === 'Enter') handleSaveCollection(cc.collectionId);
+                                                  if (e.key === 'Escape') cancelEditCollection();
+                                                }}
+                                                autoFocus
+                                              />
+                                              <div className="relative w-24 shrink-0">
+                                                <select
+                                                  value={editCollDifficulty}
+                                                  onChange={(e) =>
+                                                    setEditCollDifficulty(e.target.value as CollectionDifficulty | '')
+                                                  }
+                                                  className="w-full appearance-none bg-[#0a0a12] border border-[#2a2a3e] rounded-lg text-xs text-[#e8e8e8] cursor-pointer px-2 py-1 pr-6 focus:outline-none focus:border-[#f0a500]/40"
+                                                >
+                                                  <option value="">None</option>
+                                                  <option value="easy">Easy</option>
+                                                  <option value="medium">Medium</option>
+                                                  <option value="hard">Hard</option>
+                                                </select>
+                                                <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 text-[#6b6b8a] pointer-events-none" />
+                                              </div>
                                               <button
-                                                onClick={() =>
-                                                  handleMoveCollection(course, cc.collectionId, 'up')
-                                                }
-                                                disabled={idx === 0 || reordering}
-                                                className="p-1 rounded text-[#6b6b8a] hover:text-[#e8e8e8] disabled:opacity-30 transition-colors"
+                                                onClick={() => handleSaveCollection(cc.collectionId)}
+                                                disabled={savingCollection || !editCollName.trim()}
+                                                className="p-1 rounded text-[#22c55e] hover:text-[#4ade80] disabled:opacity-50 transition-colors"
+                                                title="Save"
                                               >
-                                                <ArrowUp className="h-3.5 w-3.5" />
-                                              </button>
-                                              <button
-                                                onClick={() =>
-                                                  handleMoveCollection(course, cc.collectionId, 'down')
-                                                }
-                                                disabled={idx === arr.length - 1 || reordering}
-                                                className="p-1 rounded text-[#6b6b8a] hover:text-[#e8e8e8] disabled:opacity-30 transition-colors"
-                                              >
-                                                <ArrowDown className="h-3.5 w-3.5" />
-                                              </button>
-                                              {/* Start Editor button */}
-                                              <button
-                                                onClick={() =>
-                                                  handleStartEditor(course.mapName, cc.collectionId)
-                                                }
-                                                disabled={startingEditor === cc.collectionId || isActiveForThis}
-                                                className={`p-1 rounded transition-colors ml-1 ${
-                                                  isActiveForThis
-                                                    ? 'text-[#22c55e]'
-                                                    : 'text-[#6b6b8a] hover:text-[#f0a500]'
-                                                } disabled:opacity-50`}
-                                                title={isActiveForThis ? 'Editor active' : 'Start Editor'}
-                                              >
-                                                {startingEditor === cc.collectionId ? (
+                                                {savingCollection ? (
                                                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
                                                 ) : (
-                                                  <Play className="h-3.5 w-3.5" />
+                                                  <Check className="h-3.5 w-3.5" />
                                                 )}
                                               </button>
                                               <button
-                                                onClick={() =>
-                                                  handleRemoveCollection(course.id, cc.collectionId)
-                                                }
-                                                disabled={removingCollectionId === cc.collectionId}
-                                                className="p-1 rounded text-[#6b6b8a] hover:text-[#ff4444] disabled:opacity-50 transition-colors ml-1"
+                                                onClick={cancelEditCollection}
+                                                className="p-1 rounded text-[#6b6b8a] hover:text-[#e8e8e8] transition-colors"
+                                                title="Cancel"
                                               >
-                                                {removingCollectionId === cc.collectionId ? (
-                                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                                ) : (
-                                                  <X className="h-3.5 w-3.5" />
-                                                )}
+                                                <X className="h-3.5 w-3.5" />
                                               </button>
                                             </div>
-                                          </div>
+                                          ) : (
+                                            /* Normal display row */
+                                            <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-[#12121a] border border-[#2a2a3e]">
+                                              <span className="text-xs font-bold text-[#6b6b8a] w-6 text-center">
+                                                {idx + 1}
+                                              </span>
+                                              <span
+                                                className="flex-1 text-sm text-[#e8e8e8] truncate cursor-pointer hover:text-[#f0a500] transition-colors"
+                                                onClick={() => startEditCollection(cc)}
+                                                title="Click to rename"
+                                              >
+                                                {cc.collection?.name ?? cc.collectionId}
+                                              </span>
+                                              {diff && diffColor && (
+                                                <span
+                                                  className="text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase shrink-0"
+                                                  style={{
+                                                    backgroundColor: `${diffColor}15`,
+                                                    color: diffColor,
+                                                  }}
+                                                >
+                                                  {COLL_DIFFICULTY_LABELS[diff]}
+                                                </span>
+                                              )}
+                                              <span className="text-[10px] text-[#6b6b8a] shrink-0">
+                                                {cc.collection?.lineupCount ?? 0} lineups
+                                              </span>
+                                              <div className="flex items-center gap-1">
+                                                <button
+                                                  onClick={() => startEditCollection(cc)}
+                                                  className="p-1 rounded text-[#6b6b8a] hover:text-[#f0a500] transition-colors"
+                                                  title="Rename"
+                                                >
+                                                  <Edit2 className="h-3.5 w-3.5" />
+                                                </button>
+                                                <button
+                                                  onClick={() =>
+                                                    handleMoveCollection(course, cc.collectionId, 'up')
+                                                  }
+                                                  disabled={idx === 0 || reordering}
+                                                  className="p-1 rounded text-[#6b6b8a] hover:text-[#e8e8e8] disabled:opacity-30 transition-colors"
+                                                >
+                                                  <ArrowUp className="h-3.5 w-3.5" />
+                                                </button>
+                                                <button
+                                                  onClick={() =>
+                                                    handleMoveCollection(course, cc.collectionId, 'down')
+                                                  }
+                                                  disabled={idx === arr.length - 1 || reordering}
+                                                  className="p-1 rounded text-[#6b6b8a] hover:text-[#e8e8e8] disabled:opacity-30 transition-colors"
+                                                >
+                                                  <ArrowDown className="h-3.5 w-3.5" />
+                                                </button>
+                                                {/* Start Editor button */}
+                                                <button
+                                                  onClick={() =>
+                                                    handleStartEditor(course.mapName, cc.collectionId)
+                                                  }
+                                                  disabled={startingEditor === cc.collectionId || isActiveForThis}
+                                                  className={`p-1 rounded transition-colors ml-1 ${
+                                                    isActiveForThis
+                                                      ? 'text-[#22c55e]'
+                                                      : 'text-[#6b6b8a] hover:text-[#f0a500]'
+                                                  } disabled:opacity-50`}
+                                                  title={isActiveForThis ? 'Editor active' : 'Start Editor'}
+                                                >
+                                                  {startingEditor === cc.collectionId ? (
+                                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                                  ) : (
+                                                    <Play className="h-3.5 w-3.5" />
+                                                  )}
+                                                </button>
+                                                <button
+                                                  onClick={() =>
+                                                    handleRemoveCollection(course.id, cc.collectionId)
+                                                  }
+                                                  disabled={removingCollectionId === cc.collectionId}
+                                                  className="p-1 rounded text-[#6b6b8a] hover:text-[#ff4444] disabled:opacity-50 transition-colors ml-1"
+                                                >
+                                                  {removingCollectionId === cc.collectionId ? (
+                                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                                  ) : (
+                                                    <X className="h-3.5 w-3.5" />
+                                                  )}
+                                                </button>
+                                              </div>
+                                            </div>
+                                          )}
 
                                           {/* Active session panel for this collection */}
                                           {isActiveForThis && activeSession && (

@@ -28,12 +28,14 @@ import {
 import { coursesApi, collectionsApi, adminSessionsApi } from '@/lib/api';
 import { useAuthStore } from '@/store/auth-store';
 import { MAPS, MAP_COLORS } from '@/lib/constants';
-import type { Course, CollectionDifficulty, LineupCollection, Session } from '@/lib/types';
+import type { Course, CourseDifficulty, CollectionDifficulty, LineupCollection, Session } from '@/lib/types';
 import toast from 'react-hot-toast';
 
 interface CourseFormData {
   name: string;
   description: string;
+  mapName: string;
+  difficulty: CourseDifficulty;
   sortOrder: number;
   isPublished: boolean;
 }
@@ -41,6 +43,8 @@ interface CourseFormData {
 const initialFormData: CourseFormData = {
   name: '',
   description: '',
+  mapName: '',
+  difficulty: 'beginner',
   sortOrder: 0,
   isPublished: false,
 };
@@ -151,11 +155,19 @@ export default function CoursesPage() {
     }
   };
 
+  const openCreateModal = () => {
+    setEditingId(null);
+    setFormData(initialFormData);
+    setShowModal(true);
+  };
+
   const openEditModal = (course: Course) => {
     setEditingId(course.id);
     setFormData({
       name: course.name,
       description: course.description || '',
+      mapName: course.mapName,
+      difficulty: course.difficulty,
       sortOrder: course.sortOrder,
       isPublished: course.isPublished,
     });
@@ -174,6 +186,10 @@ export default function CoursesPage() {
       toast.error('Name is required');
       return;
     }
+    if (!editingId && !formData.mapName) {
+      toast.error('Map is required');
+      return;
+    }
 
     setSaving(true);
     try {
@@ -184,11 +200,14 @@ export default function CoursesPage() {
       if (editingId) {
         await coursesApi.update(editingId, payload);
         toast.success('Course updated');
+      } else {
+        await coursesApi.create(payload);
+        toast.success('Course created');
       }
       await loadCourses();
       closeModal();
     } catch {
-      toast.error('Failed to update course');
+      toast.error(editingId ? 'Failed to update course' : 'Failed to create course');
     } finally {
       setSaving(false);
     }
@@ -489,6 +508,14 @@ export default function CoursesPage() {
           </select>
           <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6b6b8a] pointer-events-none" />
         </div>
+
+        <button
+          onClick={openCreateModal}
+          className="btn-primary flex items-center gap-2"
+        >
+          <Plus className="h-4 w-4" />
+          New Course
+        </button>
 
         <div className="relative ml-auto">
           <Search className="absolute top-1/2 -translate-y-1/2 w-4 h-4 text-[#6b6b8a] pointer-events-none left-3" />
@@ -1138,7 +1165,7 @@ export default function CoursesPage() {
               onClick={(e) => e.stopPropagation()}
             >
               <h2 className="text-xl font-bold text-[#e8e8e8] mb-6">
-                Edit Course
+                {editingId ? 'Edit Course' : 'New Course'}
               </h2>
 
               <form onSubmit={handleSubmit} className="space-y-4">
@@ -1168,6 +1195,47 @@ export default function CoursesPage() {
                     rows={3}
                     placeholder="Optional description..."
                   />
+                </div>
+
+                <div className="flex items-center gap-4">
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium text-[#6b6b8a] mb-2">
+                      Map
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={formData.mapName}
+                        onChange={(e) => setFormData({ ...formData, mapName: e.target.value })}
+                        disabled={!!editingId}
+                        className="w-full appearance-none bg-[#0a0a12] border border-[#2a2a3e] rounded-lg text-sm text-[#e8e8e8] px-3 py-2 pr-8 focus:outline-none focus:border-[#f0a500]/40 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <option value="">Select map...</option>
+                        {MAPS.map((m) => (
+                          <option key={m.name} value={m.name}>{m.displayName}</option>
+                        ))}
+                      </select>
+                      <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#6b6b8a] pointer-events-none" />
+                    </div>
+                  </div>
+
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium text-[#6b6b8a] mb-2">
+                      Difficulty
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={formData.difficulty}
+                        onChange={(e) => setFormData({ ...formData, difficulty: e.target.value as CourseDifficulty })}
+                        className="w-full appearance-none bg-[#0a0a12] border border-[#2a2a3e] rounded-lg text-sm text-[#e8e8e8] px-3 py-2 pr-8 focus:outline-none focus:border-[#f0a500]/40"
+                      >
+                        <option value="beginner">Beginner</option>
+                        <option value="intermediate">Intermediate</option>
+                        <option value="advanced">Advanced</option>
+                        <option value="expert">Expert</option>
+                      </select>
+                      <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#6b6b8a] pointer-events-none" />
+                    </div>
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-4">
@@ -1226,8 +1294,10 @@ export default function CoursesPage() {
                         <Loader2 className="h-4 w-4 animate-spin" />
                         Saving...
                       </>
-                    ) : (
+                    ) : editingId ? (
                       'Update'
+                    ) : (
+                      'Create'
                     )}
                   </button>
                 </div>

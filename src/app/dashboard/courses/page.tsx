@@ -111,6 +111,9 @@ export default function CoursesPage() {
   const [editingCollectionId, setEditingCollectionId] = useState<string | null>(null);
   const [editCollName, setEditCollName] = useState('');
   const [editCollDifficulty, setEditCollDifficulty] = useState<CollectionDifficulty | ''>('');
+  const [editCollParentId, setEditCollParentId] = useState<string>('');
+  const [parentCandidates, setParentCandidates] = useState<LineupCollection[]>([]);
+  const [loadingParents, setLoadingParents] = useState(false);
   const [savingCollection, setSavingCollection] = useState(false);
   const [syncingCollectionId, setSyncingCollectionId] = useState<string | null>(null);
 
@@ -382,16 +385,31 @@ export default function CoursesPage() {
     }
   };
 
-  const startEditCollection = (cc: { collectionId: string; collection?: { name?: string; difficulty?: string | null } }) => {
+  const startEditCollection = async (
+    cc: { collectionId: string; collection?: { name?: string; difficulty?: string | null; parentCollectionId?: string | null } },
+    mapName: string,
+  ) => {
     setEditingCollectionId(cc.collectionId);
     setEditCollName(cc.collection?.name ?? '');
     setEditCollDifficulty((cc.collection?.difficulty as CollectionDifficulty) || '');
+    setEditCollParentId(cc.collection?.parentCollectionId ?? '');
+    setLoadingParents(true);
+    try {
+      const colls = await collectionsApi.getAll(mapName);
+      setParentCandidates((Array.isArray(colls) ? colls : []).filter((c) => c.id !== cc.collectionId));
+    } catch {
+      // ignore
+    } finally {
+      setLoadingParents(false);
+    }
   };
 
   const cancelEditCollection = () => {
     setEditingCollectionId(null);
     setEditCollName('');
     setEditCollDifficulty('');
+    setEditCollParentId('');
+    setParentCandidates([]);
   };
 
   const handleSaveCollection = async (collectionId: string) => {
@@ -404,6 +422,7 @@ export default function CoursesPage() {
       await collectionsApi.update(collectionId, {
         name: editCollName.trim(),
         difficulty: editCollDifficulty || undefined,
+        parentCollectionId: editCollParentId || null,
       });
       await loadCourses();
       cancelEditCollection();
@@ -738,6 +757,21 @@ export default function CoursesPage() {
                                                 </select>
                                                 <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 text-[#6b6b8a] pointer-events-none" />
                                               </div>
+                                              <div className="relative w-36 shrink-0">
+                                                <select
+                                                  value={editCollParentId}
+                                                  onChange={(e) => setEditCollParentId(e.target.value)}
+                                                  disabled={loadingParents}
+                                                  className="w-full appearance-none bg-[#0a0a12] border border-[#2a2a3e] rounded-lg text-xs text-[#e8e8e8] cursor-pointer px-2 py-1 pr-6 focus:outline-none focus:border-[#f0a500]/40 disabled:opacity-50"
+                                                  title="Sync from parent collection"
+                                                >
+                                                  <option value="">No parent</option>
+                                                  {parentCandidates.map((p) => (
+                                                    <option key={p.id} value={p.id}>{p.name}</option>
+                                                  ))}
+                                                </select>
+                                                <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 text-[#6b6b8a] pointer-events-none" />
+                                              </div>
                                               <button
                                                 onClick={() => handleSaveCollection(cc.collectionId)}
                                                 disabled={savingCollection || !editCollName.trim()}
@@ -766,7 +800,7 @@ export default function CoursesPage() {
                                               </span>
                                               <span
                                                 className="flex-1 text-sm text-[#e8e8e8] truncate cursor-pointer hover:text-[#f0a500] transition-colors"
-                                                onClick={() => startEditCollection(cc)}
+                                                onClick={() => startEditCollection(cc, course.mapName)}
                                                 title="Click to rename"
                                               >
                                                 {cc.collection?.name ?? cc.collectionId}
@@ -801,7 +835,7 @@ export default function CoursesPage() {
                                                   </button>
                                                 )}
                                                 <button
-                                                  onClick={() => startEditCollection(cc)}
+                                                  onClick={() => startEditCollection(cc, course.mapName)}
                                                   className="p-1 rounded text-[#6b6b8a] hover:text-[#f0a500] transition-colors"
                                                   title="Rename"
                                                 >

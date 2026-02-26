@@ -100,6 +100,7 @@ export default function CoursesPage() {
   const [showCreateCollection, setShowCreateCollection] = useState(false);
   const [newCollName, setNewCollName] = useState('');
   const [newCollDifficulty, setNewCollDifficulty] = useState<CollectionDifficulty>('easy');
+  const [newCollSourceId, setNewCollSourceId] = useState<string>('');
   const [creatingCollection, setCreatingCollection] = useState(false);
 
   // Editor session state
@@ -323,12 +324,18 @@ export default function CoursesPage() {
       await coursesApi.createAndAddCollection(courseId, {
         name: newCollName.trim(),
         difficulty: newCollDifficulty,
+        ...(newCollSourceId ? { sourceCollectionId: newCollSourceId } : {}),
       });
       await loadCourses();
       setNewCollName('');
       setNewCollDifficulty('easy');
+      setNewCollSourceId('');
       setShowCreateCollection(false);
-      toast.success('Collection created and added');
+      toast.success(
+        newCollSourceId
+          ? 'Collection created with cloned lineups'
+          : 'Collection created and added',
+      );
     } catch (error: any) {
       toast.error(error?.response?.data?.message || 'Failed to create collection');
     } finally {
@@ -869,8 +876,8 @@ export default function CoursesPage() {
                                         <X className="h-4 w-4" />
                                       </button>
                                     </div>
-                                    <div className="flex items-end gap-3">
-                                      <div className="flex-1">
+                                    <div className="flex items-end gap-3 flex-wrap">
+                                      <div className="flex-1 min-w-[160px]">
                                         <label className="block text-[10px] font-medium text-[#6b6b8a] mb-1">
                                           Name
                                         </label>
@@ -904,6 +911,30 @@ export default function CoursesPage() {
                                           <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#6b6b8a] pointer-events-none" />
                                         </div>
                                       </div>
+                                      {(course.courseCollections?.length ?? 0) > 0 && (
+                                        <div className="w-44">
+                                          <label className="block text-[10px] font-medium text-[#6b6b8a] mb-1">
+                                            Based on
+                                          </label>
+                                          <div className="relative">
+                                            <select
+                                              value={newCollSourceId}
+                                              onChange={(e) => setNewCollSourceId(e.target.value)}
+                                              className="w-full appearance-none bg-[#0a0a12] border border-[#2a2a3e] rounded-lg text-sm text-[#e8e8e8] cursor-pointer px-3 py-2 pr-8 focus:outline-none focus:border-[#f0a500]/40"
+                                            >
+                                              <option value="">None (empty)</option>
+                                              {[...(course.courseCollections ?? [])]
+                                                .sort((a, b) => a.sortOrder - b.sortOrder)
+                                                .map((cc) => (
+                                                  <option key={cc.collectionId} value={cc.collectionId}>
+                                                    {cc.collection?.name ?? cc.collectionId.slice(0, 8)}
+                                                  </option>
+                                                ))}
+                                            </select>
+                                            <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#6b6b8a] pointer-events-none" />
+                                          </div>
+                                        </div>
+                                      )}
                                       <button
                                         onClick={() => handleCreateCollection(course.id)}
                                         disabled={creatingCollection || !newCollName.trim()}

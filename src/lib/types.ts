@@ -210,6 +210,28 @@ export interface Course {
   updatedAt: string;
 }
 
+// Admin collection search result (includes user-owned collections)
+export interface AdminSearchedCollection {
+  id: string;
+  name: string;
+  description?: string;
+  mapName: string;
+  isPublished: boolean;
+  isTraining: boolean;
+  lineupCount: number;
+  ownerId: string;
+  ownerName: string;
+  ownerAvatar?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminCollectionSearchResult {
+  items: AdminSearchedCollection[];
+  total: number;
+  page: number;
+}
+
 // Achievement types
 export type AchievementTier = 'bronze' | 'silver' | 'gold' | 'diamond';
 

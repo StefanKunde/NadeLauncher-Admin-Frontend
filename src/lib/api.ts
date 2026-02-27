@@ -17,6 +17,7 @@ import type {
   Course,
   Achievement,
   CourseDifficulty,
+  AdminCollectionSearchResult,
 } from './types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://nadelauncher-backend-a99d397c.apps.deploypilot.stefankunde.dev';
@@ -293,6 +294,20 @@ export const adminAchievementsApi = {
   update: (id: string, data: Partial<Achievement>) =>
     api.put(`/admin/achievements/${id}`, data).then((r) => unwrap<Achievement>(r.data)),
   delete: (id: string) => api.delete(`/admin/achievements/${id}`),
+};
+
+// Admin Collections Search
+export const adminCollectionsApi = {
+  search: (params: {
+    search?: string;
+    map?: string;
+    type?: 'all' | 'community' | 'user';
+    page?: number;
+    limit?: number;
+  }) =>
+    api
+      .get('/admin/collections/search', { params })
+      .then((r) => unwrap<AdminCollectionSearchResult>(r.data)),
 };
 
 export default api;

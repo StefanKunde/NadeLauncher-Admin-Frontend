@@ -180,8 +180,17 @@ export default function BrowsePage() {
     const grouped: Record<string, LineupCollection[]> = {};
     for (const c of allCollections) {
       if (c.id === selectedCollectionId) continue;
+      if (c.isDefault) continue; // exclude pro/preset collections
       if (!grouped[c.mapName]) grouped[c.mapName] = [];
       grouped[c.mapName].push(c);
+    }
+    // Sort each map's list: course/training collections first
+    for (const mapName of Object.keys(grouped)) {
+      grouped[mapName].sort((a, b) => {
+        const aTraining = a.isTraining ? 0 : 1;
+        const bTraining = b.isTraining ? 0 : 1;
+        return aTraining - bTraining;
+      });
     }
     return grouped;
   }, [allCollections, selectedCollectionId]);
@@ -590,7 +599,14 @@ function NadeListItem({
     return () => document.removeEventListener('mousedown', handler);
   }, [isMenuOpen, onToggleMenu]);
 
-  const mapsWithTargets = MAPS.filter((m) => (addTargetsByMap[m.name]?.length ?? 0) > 0);
+  // Show the lineup's own map first, others after
+  const mapsWithTargets = MAPS
+    .filter((m) => (addTargetsByMap[m.name]?.length ?? 0) > 0)
+    .sort((a, b) => {
+      if (a.name === lineup.mapName) return -1;
+      if (b.name === lineup.mapName) return 1;
+      return 0;
+    });
 
   return (
     <div ref={containerRef} className="relative" data-lineup-id={lineup.id}>
